@@ -105,6 +105,8 @@ dependencies {
     implementation("org.apache.poi:poi-ooxml:5.2.3")
     implementation("androidx.multidex:multidex:2.0.1")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
 
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")

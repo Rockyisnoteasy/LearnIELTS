@@ -9,6 +9,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+
 
 @Composable
 fun ChineseToEnglishSelect(
@@ -36,6 +41,7 @@ fun ChineseToEnglishSelect(
         val others = ('a'..'z').filter { it != currentChar }.shuffled().take(3)
         (others + listOfNotNull(currentChar)).shuffled()
     }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -70,6 +76,26 @@ fun ChineseToEnglishSelect(
 
         Spacer(modifier = Modifier.height(180.dp))  // 候选字母按钮高度
 
+        // 添加了backspace
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Button(
+                onClick = {
+                    if (selected.isNotEmpty()) {
+                        selected = selected.dropLast(1) // 删除最后一个字母
+                    }
+                },
+                modifier = Modifier.width(100.dp)
+            ) {
+                Text("← 回退")
+            }
+        }
+
+
         // 候选字母按钮
         Row(
             modifier = Modifier
@@ -83,16 +109,21 @@ fun ChineseToEnglishSelect(
                     onClick = {
                         val newInput = selected + option
                         if (newInput.length == lowerWord.length) {
-                            results.add(
-                                Quad(
-                                    word = word,
-                                    chinese = chinese,
-                                    userAnswer = newInput,
-                                    correct = newInput.equals(word, ignoreCase = true)
+                            selected = newInput
+
+                            scope.launch {
+                                kotlinx.coroutines.delay(1000)
+                                results.add(
+                                    Quad(
+                                        word = word,
+                                        chinese = chinese,
+                                        userAnswer = newInput,
+                                        correct = newInput.equals(word, ignoreCase = true)
+                                    )
                                 )
-                            )
-                            selected = ""
-                            currentIndex++
+                                selected = ""
+                                currentIndex++
+                            }
                         } else {
                             selected = newInput
                         }
@@ -101,6 +132,7 @@ fun ChineseToEnglishSelect(
                 ) {
                     Text(option.toString(), style = MaterialTheme.typography.headlineSmall)
                 }
+
             }
         }
     }
