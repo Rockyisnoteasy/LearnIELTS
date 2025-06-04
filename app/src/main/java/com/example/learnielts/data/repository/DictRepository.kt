@@ -7,15 +7,22 @@ import android.content.Context
 import android.util.Log
 import com.example.learnielts.utils.AudioPlayer
 import com.example.learnielts.data.datasource.TTSDataSource
+import com.example.learnielts.data.room.AppDatabase
+import com.example.learnielts.data.room.DictionaryDao
+import com.example.learnielts.utils.VoiceCacheManager
 
 class DictRepository(
     private val context: Context,
     private val ttsSource: TTSDataSource
 ) {
+    private val dao: DictionaryDao by lazy {
+        AppDatabase.getInstance(context).dictionaryDao()
+    }
+
     suspend fun playWordAudio(word: String, speed: Float = 1.0f) {
         Log.d("调试", "DictRepository 接收到播放请求：$word")
 
-        val cachedFile = com.example.learnielts.utils.VoiceCacheManager.getVoicePathIfExists(word, context)
+        val cachedFile = VoiceCacheManager.getVoicePathIfExists(word, context)
 
         if (cachedFile != null) {
             Log.d("调试", "找到缓存路径，准备播放：${cachedFile.absolutePath}")
@@ -35,5 +42,10 @@ class DictRepository(
         AudioPlayer.play(context, downloaded)
     }
 
-
+    // ✅ 添加的数据库随机干扰词获取函数
+    suspend fun getRandomDistractorWords(correct: String, count: Int = 3): List<String> {
+        val words = dao.getRandomWordsExcluding(correct, count)
+        Log.d("调试", "✅ 从数据库随机取词（排除=$correct）：$words")
+        return words
+    }
 }

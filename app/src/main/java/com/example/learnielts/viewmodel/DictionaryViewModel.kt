@@ -101,6 +101,10 @@ class DictionaryViewModel(application: Application) : AndroidViewModel(applicati
             } else false
         }.map { it.word }
     }
+
+    suspend fun getRandomDistractorWords(correct: String): List<String> {
+        return dictRepository.getRandomDistractorWords(correct)
+    }
 }
 
 

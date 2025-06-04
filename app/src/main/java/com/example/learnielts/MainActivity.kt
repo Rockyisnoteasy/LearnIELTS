@@ -54,6 +54,8 @@ import com.example.learnielts.ui.screen.common.WordPlanSource
 import com.example.learnielts.utils.FileHelper
 import com.example.learnielts.ui.screen.ChineseToEnglishSelectSetup
 import com.example.learnielts.ui.screen.ChineseToEnglishSelect
+import com.example.learnielts.ui.screen.MeaningToWordSelect
+import com.example.learnielts.ui.screen.MeaningToWordSelectSetup
 
 
 enum class DrawerLevel {
@@ -66,7 +68,9 @@ enum class DrawerLevel {
     PLAN_CHINESE_MENU_SPELL, // 中翻英填词
     PLAN_SENTENCE_MENU,
     PLAN_MANAGE_MENU,
-    PLAN_MANAGE_ACTIONS
+    PLAN_MANAGE_ACTIONS,
+    PLAN_MEANING_SELECT,
+    PLAN_SELF_MEANING_SELECT
 }
 
 class MainActivity : ComponentActivity() {
@@ -149,6 +153,9 @@ fun AppContent(viewModel: DictionaryViewModel) {
     var chineseSelectState by remember { mutableStateOf("setup") }
     var chineseSelectScreenState by remember { mutableStateOf("setup") }
     var chineseSelectResults by remember { mutableStateOf(emptyList<Quad>()) }
+    var showMeaningSelect by remember { mutableStateOf(false) }
+    var meaningSelectScreenState by remember { mutableStateOf("setup") }
+
 
 
 
@@ -194,6 +201,10 @@ fun AppContent(viewModel: DictionaryViewModel) {
 
                         DrawerText("听力填空") {
                             drawerLevel = DrawerLevel.PLAN_LISTEN_MENU
+                        }
+
+                        DrawerText("以意选词") {
+                            drawerLevel = DrawerLevel.PLAN_MEANING_SELECT
                         }
 
                         DrawerText("中译英选择填词") {
@@ -285,6 +296,12 @@ fun AppContent(viewModel: DictionaryViewModel) {
                             showWordList = true
                             scope.launch { drawerState.close() }
                         }
+
+                        DrawerText("以意选词") {
+                            showMeaningSelect = true
+                            scope.launch { drawerState.close() }
+                        }
+
 
                         DrawerText("中译英选择填词") {
                             chineseTestScreenState = "setup"
@@ -481,7 +498,6 @@ fun AppContent(viewModel: DictionaryViewModel) {
                         }
                     }
 
-
                     DrawerLevel.PLAN_MANAGE_ACTIONS -> {
                         val context = LocalContext.current
 
@@ -508,6 +524,68 @@ fun AppContent(viewModel: DictionaryViewModel) {
                             drawerLevel = DrawerLevel.MAIN_MENU
                         }
                     }
+
+                    DrawerLevel.PLAN_MEANING_SELECT -> {
+                        val context = LocalContext.current
+                        val plans = remember { FileHelper.loadAllPlans(context) }
+
+                        // 返回按钮
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { drawerLevel = DrawerLevel.PLAN_MENU }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("选择计划（以意选词）")
+                        }
+
+                        Divider()
+
+                        plans.forEach { plan ->
+                            DrawerText(plan.planName) {
+                                learningPlanTarget = "meaning_select"
+                                selectedPlan = plan.planName
+                                showMeaningSelect = true
+                                meaningSelectScreenState = "setup"
+                                scope.launch { drawerState.close() }
+                            }
+                        }
+                    }
+
+                    DrawerLevel.PLAN_SELF_MEANING_SELECT -> {
+                        val context = LocalContext.current
+                        val plans = remember { FileHelper.loadAllPlans(context) }
+
+                        // 返回按钮
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { drawerLevel = DrawerLevel.SELF_PLAN_MENU }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("选择计划（以意选词）")
+                        }
+
+                        Divider()
+
+                        plans.forEach { plan ->
+                            DrawerText(plan.planName) {
+                                learningPlanTarget = "meaning_select_self"
+                                selectedPlan = plan.planName
+                                showMeaningSelect = true
+                                meaningSelectScreenState = "setup"
+                                scope.launch { drawerState.close() }
+                            }
+                        }
+                    }
+
+
 
 
 
@@ -697,6 +775,45 @@ fun AppContent(viewModel: DictionaryViewModel) {
                                 showWordSentencePage = false
                             }
                         )
+                    }
+
+                    showMeaningSelect -> {
+                        when (meaningSelectScreenState) {
+                            "setup" -> MeaningToWordSelectSetup(
+                                context = LocalContext.current,
+                                viewModel = viewModel,
+                                planSource = if (learningPlanTarget == "meaning_select")
+                                    WordPlanSource.SCHEDULED_PLAN else WordPlanSource.LEARNED_WORDS,
+                                selectedPlanName = selectedPlan,
+                                onBack = { showMeaningSelect = false },
+                                onStartTest = {
+                                    testQuestions = it
+                                    meaningSelectScreenState = "test"
+                                }
+                            )
+
+                            "test" -> MeaningToWordSelect(
+                                questions = testQuestions,
+                                viewModel = viewModel, // ✅ 传入
+                                onFinish = {
+                                    testResults = it
+                                    meaningSelectScreenState = "result"
+                                },
+                                onBack = {
+                                    meaningSelectScreenState = "setup"
+                                }
+                            )
+
+
+                            "result" -> TestResultScreen(
+                                results = testResults,
+                                onBack = { showMeaningSelect = false },
+                                onRetry = {
+                                    testQuestions = testResults.shuffled().map { r -> r.word to r.chinese }
+                                    meaningSelectScreenState = "test"
+                                }
+                            )
+                        }
                     }
 
                     else -> {
