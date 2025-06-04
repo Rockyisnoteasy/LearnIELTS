@@ -1,0 +1,32 @@
+文件名,功能简介,被哪些文件调用
+MainActivity.kt,应用主入口，管理页面导航、状态变量（如是否展示首页、翻牌页等）,所有页面
+HomeScreen.kt,首页模块，显示搜索栏和今日学习计划卡片，点击按钮进入翻牌页或学习计划页,MainActivity
+LearningPlanScreen.kt,设置学习计划（如每日学习词数），保存到本地 word_schedule 目录,MainActivity、FileHelper
+FlipCardScreen.kt,翻牌学习页面，显示单词正反面，用于记忆练习（接收传入的词表）,MainActivity
+FlipCardMenuScreen.kt,翻牌模块的菜单页，选择某一日期进入对应词表的翻牌练习,MainActivity
+WordListScreen.kt,查看或手动添加某日期的学习单词，支持释义弹窗,MainActivity
+WordSentencePage.kt,以词造句功能，用户写句子，AI 模型给出语法/表达点评,MainActivity、AIWritingJudge
+ChineseToEnglishTest.kt,中译英测试页面，输入英文回答中文释义，统计成绩,MainActivity
+ChineseToEnglishSetup.kt,设置中译英测试词表来源（选择日期）,MainActivity
+ListeningTestSetupScreen.kt,听力测试模块设置页，选择测试词汇的日期,MainActivity
+ListeningTestScreen.kt,听力测试主页面，播放发音并接收输入答案,MainActivity
+ListeningTestResultScreen.kt,听力测试结果展示页，统计正确率与错词,MainActivity
+TestResultScreen.kt,所有测试模块通用的测试结果页面（如中译英）,MainActivity
+DailyWordSummaryCard.kt,学习计划卡片组件，用于在首页显示进度、新词数等,HomeScreen
+DictionarySearchBar.kt,统一封装搜索栏组件，供首页和词典查询共用,HomeScreen、DictionaryScreen
+FileHelper.kt,通用工具类，负责读取/写入每日词表、计算学习进度等,HomeScreen、LearningPlanScreen、其他工具
+DictionaryLoader.kt,加载 CSV 词典为词条数据结构,DictionaryViewModel
+DictRepository.kt,统一词典播放与查询接口，实现缓存优先与语音生成,DictionaryViewModel
+WordEntry.kt,词条数据结构类，包含单词与释义等信息,DictionaryLoader
+DictionaryViewModel.kt,Compose ViewModel，控制 TTS 播放源、释义查询、播放行为等,MainActivity、HomeScreen、DictionarySearchBar
+GoogleTTSDataSource.kt,Google TTS 数据源实现，生成音频缓存,DictRepository
+TencentTTSDataSource.kt,腾讯 TTS 数据源实现，支持 TC3-HMAC-SHA256 签名,DictRepository
+TTSDataSource.kt,TTS 数据源接口定义,Google/Tencent TTS 实现
+AudioPlayer.kt,播放本地语音缓存,DictRepository
+PopupUtils.kt,弹出释义窗口，用于点击单词显示详情,WordListScreen
+RelatedWordsManager.kt,从释义中识别变形词（如复数、过去式）并建立映射,DictRepository、WordListScreen
+ChineseDefinitionExtractor.kt,提取中文释义部分的工具类，用于翻牌卡等模块,FlipCardScreen
+ExcelWordLoader.kt,从 Excel 表中读取全词表，用于生成学习计划,LearningPlanScreen
+VoiceCacheManager.kt,统一管理本地缓存音频文件与 wordbook_android.json,DictRepository、AudioPlayer
+AIWritingJudge.kt,以词造句模块使用的 AI 审核调用类，连接 API 接口,WordSentencePage
+DateWordPickerScreen.kt,日期选择器组件，供多个模块选择学习词表来源日期,FlipCardMenuScreen、ChineseToEnglishSetup、ListeningTestSetupScreen等

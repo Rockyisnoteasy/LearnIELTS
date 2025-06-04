@@ -1,0 +1,36 @@
+- src/
+  - MainActivity.kt                // 应用主入口
+  - theme/                         // UI 主题配置目录（文件未展开）
+  - utils/                         // 工具类目录
+    - AIWritingJudge              // AI 语法和表达检查工具类
+    - AudioPlayer                 // 音频播放工具类
+    - ChineseDefinitionExtractor  // 提取中文释义工具类
+    - ExcelWordLoader             // 加载 Excel 格式词汇表工具类
+    - FileHelper                  // 文件操作工具类
+    - RelatedWordsManager         // 关联词识别与存储工具类
+    - VoiceCacheManager           // 语音缓存管理工具类
+  - viewmodel/                     // MVVM 的 ViewModel 层
+    - DictionaryViewModel.kt      // 词典模块的 ViewModel
+    - PopupUtils.kt               // 弹窗工具类（可能用于统一管理 UI 弹窗）
+  - screens/                       // 各个功能页面（你的项目中未分文件夹显示，但可理解为属于 UI 层）
+    - DateWordPickerScreen.kt     // 日期选择器界面（用于选择单词日期）
+    - ChineseToEnglishSetup.kt    // 中文转英文测试的设置页面
+    - ChineseToEnglishTest.kt     // 中文转英文测试页面
+    - FlipCardMenuScreen.kt       // 翻牌记忆卡的菜单页面
+    - FlipCardScreen.kt           // 翻牌记忆卡的主页面
+    - HomeScreen.kt               // 应用首页
+    - LearningPlanScreen.kt       // 学习计划展示页面
+    - ListeningTestResultScreen.kt // 听力测试结果页面
+    - ListeningTestScreen.kt      // 听力测试主页面
+    - ListeningTestSetupScreen.kt // 听力测试设置页面
+    - SearchScreen.kt             // 查询单词页面
+    - TestResultScreen.kt         // 测试结果总览页面（用于多个测试通用）
+    - WordListScreen.kt           // 单词列表页面（按日期或来源分类）
+    - WordSentencePage.kt         // 以词造句模块的页面
+  - 项目总览.csv                   // 项目文件说明文档（CSV 格式）
+
+- res/                             // Android 资源文件夹（布局、图片、字符串等）
+- AndroidManifest.xml              // Android 应用的配置文件
+- test/ [unitTest]                 // 单元测试目录
+- .gitignore                       // Git 忽略规则
+- build.gradle.kts                 // Kotlin DSL 格式的 Gradle 构建脚本
