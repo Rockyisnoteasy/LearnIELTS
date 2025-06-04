@@ -31,3 +31,10 @@ google-services.json
 
 # Android Profiling
 *.hprof
+.idea/
+*.iml
+.gradle/
+build/
+app/src/main/assets/poetic-nature-450906-k5-6c902b6b4010.json
+app/src/main/java/com/example/learnielts/data/datasource/GoogleTTSDataSource.kt
+app/src/main/java/com/example/learnielts/data/datasource/TencentTTSDataSource.kt
