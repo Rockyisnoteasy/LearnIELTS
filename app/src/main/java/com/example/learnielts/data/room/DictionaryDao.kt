@@ -14,5 +14,8 @@ interface DictionaryDao {
     @Query("SELECT word FROM dictionary WHERE word != :exclude ORDER BY RANDOM() LIMIT :count")
     suspend fun getRandomWordsExcluding(exclude: String, count: Int): List<String>
 
+    @Query("SELECT definition FROM dictionary WHERE word != :exclude ORDER BY RANDOM() LIMIT :count")
+    suspend fun getRandomDefinitionsExcluding(exclude: String, count: Int): List<String>
+
 }
 

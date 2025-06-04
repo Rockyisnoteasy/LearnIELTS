@@ -105,6 +105,11 @@ class DictionaryViewModel(application: Application) : AndroidViewModel(applicati
     suspend fun getRandomDistractorWords(correct: String): List<String> {
         return dictRepository.getRandomDistractorWords(correct)
     }
+
+    suspend fun getRandomDistractorDefinitions(correctWord: String): List<String> {
+        return dictRepository.getRandomDistractorDefinitions(correctWord)
+    }
+
 }
 
 

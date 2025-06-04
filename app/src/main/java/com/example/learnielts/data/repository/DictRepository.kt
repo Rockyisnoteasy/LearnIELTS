@@ -48,4 +48,9 @@ class DictRepository(
         Log.d("调试", "✅ 从数据库随机取词（排除=$correct）：$words")
         return words
     }
+
+    suspend fun getRandomDistractorDefinitions(correctWord: String, count: Int = 3): List<String> {
+        return dao.getRandomDefinitionsExcluding(correctWord, count)
+    }
+
 }

@@ -18,4 +18,19 @@ object ChineseDefinitionExtractor {
             definition.substring(startIdx, endIdx).trim()
         }
     }
+
+    fun simplify(definition: String?): String? {
+        val raw = extract(definition) ?: return null
+        return raw
+            .split(Regex("""\n|\r|\d+[\.\、]""")) // 按换行或序号分割
+            .mapNotNull { line ->
+                line.trim()
+                    .replace(Regex("（.*?）|\\(.*?\\)"), "") // 删除括号及其内容
+                    .split(Regex("[,，；;]"))
+                    .firstOrNull()
+            }
+            .filter { it.isNotBlank() }
+            .joinToString("；")
+    }
+
 }
