@@ -5,10 +5,10 @@ import androidx.room.Query
 
 @Dao
 interface DictionaryDao {
-
     @Query("SELECT * FROM dictionary")
-    fun getAllSync(): List<WordEntryEntity>  // 同步版，供 ViewModel 初始加载用
+    suspend fun getAll(): List<WordEntryEntity>  // ✅ 挂起函数
 
     @Query("SELECT * FROM dictionary WHERE word = :word LIMIT 1")
     suspend fun getByWord(word: String): WordEntryEntity?
 }
+

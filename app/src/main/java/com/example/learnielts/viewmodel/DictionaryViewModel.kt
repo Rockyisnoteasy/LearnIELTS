@@ -45,10 +45,17 @@ class DictionaryViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun loadDict() {
         viewModelScope.launch {
-            val data = DictionaryLoader.loadDictionary(getApplication())
-            _entries.value = data
+            try {
+                Log.d("调试", "📦 ViewModel 开始调用 DictionaryLoader")
+                val data = DictionaryLoader.loadDictionary(getApplication())
+                _entries.value = data
+                Log.d("调试", "✅ ViewModel 词典数据更新，项数=${data.size}")
+            } catch (e: Exception) {
+                Log.e("调试", "❌ ViewModel 中加载词典失败：${e.message}", e)
+            }
         }
     }
+
 
     fun getDefinition(word: String): String? {
         val realWord = RelatedWordsManager.getRealSourceWord(word, appContext)
