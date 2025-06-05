@@ -76,8 +76,6 @@ enum class DrawerLevel {
     PLAN_SELF_MEANING_SELECT,
     PLAN_WORD_MEANING_SELECT,
     PLAN_SELF_WORD_MEANING_SELECT,
-    PLAN_FLYER_MENU, // 计划中进入飞行家
-    PLAN_SELF_FLYER_MENU // 自订计划中进入飞行家
 }
 
 class MainActivity : ComponentActivity() {
@@ -164,8 +162,8 @@ fun AppContent(viewModel: DictionaryViewModel) {
     var meaningSelectScreenState by remember { mutableStateOf("setup") }
     var showWordToMeaningSelect by remember { mutableStateOf(false) }
     var wordToMeaningSelectScreenState by remember { mutableStateOf("setup") }
-    var showFlyerGame by remember { mutableStateOf(false) }
-    var flyerGameScreenState by remember { mutableStateOf("setup") }
+
+
 
 
 
@@ -230,12 +228,8 @@ fun AppContent(viewModel: DictionaryViewModel) {
                         DrawerText("以词造句") {
                             drawerLevel = DrawerLevel.PLAN_SENTENCE_MENU
                         }
-
-                        DrawerText("飞行家") {
-                            drawerLevel = DrawerLevel.PLAN_FLYER_MENU
-                        }
-
                     }
+
 
                     DrawerLevel.MAIN_MENU -> {
                         DrawerText("功能菜单", modifier = Modifier.padding(16.dp))
@@ -290,6 +284,7 @@ fun AppContent(viewModel: DictionaryViewModel) {
 
                     }
 
+
                     DrawerLevel.SELF_PLAN_MENU -> {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -329,11 +324,13 @@ fun AppContent(viewModel: DictionaryViewModel) {
                             scope.launch { drawerState.close() }
                         }
 
+
                         DrawerText("选择填词") {
                             chineseTestScreenState = "setup"
                             showChineseToEnglishSelect = true
                             scope.launch { drawerState.close() }
                         }
+
 
                         DrawerText("拼写填词") {
                             chineseTestScreenState = "setup"
@@ -350,13 +347,6 @@ fun AppContent(viewModel: DictionaryViewModel) {
                             showWordSentencePage = true
                             scope.launch { drawerState.close() }
                         }
-
-                        DrawerText("飞行家") {
-                            showFlyerGame = true
-                            flyerGameScreenState = "setup"
-                            scope.launch { drawerState.close() }
-                        }
-
                     }
 
                     DrawerLevel.PLAN_CARD_MENU -> {
@@ -674,67 +664,6 @@ fun AppContent(viewModel: DictionaryViewModel) {
                             }
                         }
                     }
-
-                    DrawerLevel.PLAN_FLYER_MENU -> {
-                        val context = LocalContext.current
-                        val plans = remember { FileHelper.loadAllPlans(context) }
-
-                        // 返回按钮
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { drawerLevel = DrawerLevel.PLAN_MENU }
-                                .padding(16.dp)
-                        ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                            Spacer(Modifier.width(8.dp))
-                            DrawerText("选择计划（飞行家）")
-                        }
-
-                        Divider()
-
-                        plans.forEach { plan ->
-                            DrawerText(plan.planName) {
-                                learningPlanTarget = "flyer_game"
-                                selectedPlan = plan.planName
-                                showFlyerGame = true
-                                flyerGameScreenState = "setup"
-                                scope.launch { drawerState.close() }
-                            }
-                        }
-                    }
-
-                    DrawerLevel.PLAN_SELF_FLYER_MENU -> {
-                        val context = LocalContext.current
-                        val plans = remember { FileHelper.loadAllPlans(context) }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { drawerLevel = DrawerLevel.SELF_PLAN_MENU }
-                                .padding(16.dp)
-                        ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                            Spacer(Modifier.width(8.dp))
-                            DrawerText("选择计划（飞行家）")
-                        }
-
-                        Divider()
-
-                        plans.forEach { plan ->
-                            DrawerText(plan.planName) {
-                                learningPlanTarget = "flyer_game_self"
-                                selectedPlan = plan.planName
-                                showFlyerGame = true
-                                flyerGameScreenState = "setup"
-                                scope.launch { drawerState.close() }
-                            }
-                        }
-                    }
-
-
                 }
             }
         }
@@ -994,34 +923,6 @@ fun AppContent(viewModel: DictionaryViewModel) {
                                 onRetry = {
                                     testQuestions = testResults.shuffled().map { r -> r.word to r.chinese }
                                     wordToMeaningSelectScreenState = "test"
-                                }
-                            )
-                        }
-                    }
-
-                    showFlyerGame -> {
-                        when (flyerGameScreenState) {
-                            "setup" -> FlyerGameSetup(
-                                context = LocalContext.current,
-                                viewModel = viewModel,
-                                planSource = if (learningPlanTarget == "flyer_game")
-                                    WordPlanSource.SCHEDULED_PLAN else WordPlanSource.LEARNED_WORDS,
-                                selectedPlanName = selectedPlan,
-                                onBack = {
-                                    showFlyerGame = false
-                                    flyerGameScreenState = "setup"
-                                },
-                                onStartGame = { wordList ->
-                                    flyerGameScreenState = "play"
-                                    // 你可以存储 wordList 到 remember 变量中
-                                }
-                            )
-
-                            "play" -> FlyerGameScreen(
-                                // 你可以传 wordList = ...
-                                onExit = {
-                                    showFlyerGame = false
-                                    flyerGameScreenState = "setup"
                                 }
                             )
                         }
