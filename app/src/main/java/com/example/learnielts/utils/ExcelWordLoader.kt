@@ -1,4 +1,5 @@
 // excel表中读取全词表，用于生成学习计划,LearningPlanScreen调用
+// 目前词典已经转为数据库文件，所以这个文件只专注于学习计划词表生成，如果将来计划把学习计划用词也迁移进数据库，那么它就可以完全删除。
 
 package com.example.learnielts.utils
 

@@ -37,18 +37,28 @@ fun LearningPlanScreen(
     val context = LocalContext.current
     var planNameInput by remember { mutableStateOf("") }
 
-    // 二级单词列表数据（可以后续改为动态读取）
-    val planMap = mapOf(
-        "考研" to listOf("考研核心词汇1000", "考研高频词汇2000"),
-        "四六级" to listOf("六级十天冲刺1591词", "四级深度记忆核心1905词"),
-        "雅思" to listOf("雅思基础词汇", "雅思进阶词汇")
-    )
+    // 二级单词列表数据动态读取
+    val planMap = remember {
+        categories.associateWith { category ->
+            try {
+                context.assets.list(category)
+                    ?.filter { it.endsWith(".xlsx") }
+                    ?.map { it.removeSuffix(".xlsx") }
+                    ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+    }
+
 
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
     var showDialog by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
     var selectedPlanName by remember { mutableStateOf<String?>(null) }
+    var showNameConflictDialog by remember { mutableStateOf(false) }
+
 
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -147,27 +157,39 @@ fun LearningPlanScreen(
                         val planName = planNameInput.trim()
 
                         if (planName.isNotBlank() && count != null && count > 0) {
-                            Log.d("调试", "准备保存学习计划：planName=$planName, dailyCount=$count")
-                            // ✅ 保存 current_plan.json
-                            FileHelper.addPlanToCurrentList(
-                                context,
-                                PlanInfo(
-                                    planName = planName,
-                                    category = selectedCategory!!,
-                                    selectedPlan = selectedPlanName!!,
-                                    dailyCount = count
+                            val existingPlans = FileHelper.loadAllPlans(context)
+                            val nameExists = existingPlans.any { it.planName.equals(planName, ignoreCase = true) }
+
+                            if (nameExists) {
+                                showNameConflictDialog = true
+                            } else {
+                                Log.d("调试", "✅ 新建学习计划：$planName")
+                                FileHelper.addPlanToCurrentList(
+                                    context,
+                                    PlanInfo(
+                                        planName = planName,
+                                        category = selectedCategory!!,
+                                        selectedPlan = selectedPlanName!!,
+                                        dailyCount = count
+                                    )
                                 )
-                            )
 
+                                FileHelper.generateTodayWordListFromPlan(
+                                    context,
+                                    selectedCategory!!,
+                                    selectedPlanName!!,
+                                    planName,
+                                    count
+                                )
 
-                            // ✅ 保存今日词表到 word_schedule/planName/yyyy-MM-dd.json
-                            FileHelper.generateTodayWordListFromPlan(context, selectedCategory!!, selectedPlanName!!, planName, count)
-
-                            showDialog = false
+                                showDialog = false
+                            }
                         }
                     }) {
                         Text("确定")
                     }
+
+
                 },
                 dismissButton = {
                     TextButton(onClick = { showDialog = false }) {
@@ -179,5 +201,19 @@ fun LearningPlanScreen(
 
 
     }
+
+    if (showNameConflictDialog) {
+        AlertDialog(
+            onDismissRequest = { showNameConflictDialog = false },
+            title = { Text("命名冲突") },
+            text = { Text("该计划已存在，请重新输入") },
+            confirmButton = {
+                TextButton(onClick = { showNameConflictDialog = false }) {
+                    Text("确定")
+                }
+            }
+        )
+    }
+
 }
 

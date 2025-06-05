@@ -201,34 +201,29 @@ fun AppContent(viewModel: DictionaryViewModel) {
 
                         Divider()
 
-
-
                         DrawerText("记忆卡") {
                             drawerLevel = DrawerLevel.PLAN_CARD_MENU
-                        }
-
-
-                        DrawerText("听力填空") {
-                            drawerLevel = DrawerLevel.PLAN_LISTEN_MENU
                         }
 
                         DrawerText("以词选意") {
                             drawerLevel = DrawerLevel.PLAN_WORD_MEANING_SELECT
                         }
 
-
-
                         DrawerText("以意选词") {
                             drawerLevel = DrawerLevel.PLAN_MEANING_SELECT
                         }
 
-                        DrawerText("中译英选择填词") {
+                        DrawerText("选择填词") {
                             drawerLevel = DrawerLevel.PLAN_CHINESE_MENU_SELECT
                         }
 
 
-                        DrawerText("中译英拼写填词") {
+                        DrawerText("拼写填词") {
                             drawerLevel = DrawerLevel.PLAN_CHINESE_MENU_SPELL
+                        }
+
+                        DrawerText("听力填空") {
+                            drawerLevel = DrawerLevel.PLAN_LISTEN_MENU
                         }
 
                         DrawerText("以词造句") {
@@ -256,7 +251,7 @@ fun AppContent(viewModel: DictionaryViewModel) {
 
 
                         DrawerText(
-                            text = "自主学习计划",
+                            text = "自订学习计划",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
@@ -277,9 +272,15 @@ fun AppContent(viewModel: DictionaryViewModel) {
                                 .padding(16.dp)
                         )
 
-                        DrawerText("管理学习计划") {
-                            drawerLevel = DrawerLevel.PLAN_MANAGE_MENU
-                        }
+                        DrawerText(
+                            text = "管理学习计划",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    drawerLevel = DrawerLevel.PLAN_MANAGE_MENU
+                                }
+                                .padding(16.dp)
+                        )
 
 
                     }
@@ -302,13 +303,13 @@ fun AppContent(viewModel: DictionaryViewModel) {
 
                         Divider()
 
-                        DrawerText("记忆卡") {
-                            showFlipCard = true
+                        DrawerText("自订单词日历") {
+                            showWordList = true
                             scope.launch { drawerState.close() }
                         }
 
-                        DrawerText("Word List") {
-                            showWordList = true
+                        DrawerText("记忆卡") {
+                            showFlipCard = true
                             scope.launch { drawerState.close() }
                         }
 
@@ -325,14 +326,14 @@ fun AppContent(viewModel: DictionaryViewModel) {
                         }
 
 
-                        DrawerText("中译英选择填词") {
+                        DrawerText("选择填词") {
                             chineseTestScreenState = "setup"
                             showChineseToEnglishSelect = true
                             scope.launch { drawerState.close() }
                         }
 
 
-                        DrawerText("中译英拼写填词") {
+                        DrawerText("拼写填词") {
                             chineseTestScreenState = "setup"
                             showChineseToEnglish = true
                             scope.launch { drawerState.close() }
