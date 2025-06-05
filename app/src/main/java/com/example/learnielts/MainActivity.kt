@@ -59,6 +59,9 @@ import com.example.learnielts.ui.screen.MeaningToWordSelectSetup
 import com.example.learnielts.ui.screen.WordToMeaningSelect
 import com.example.learnielts.ui.screen.WordToMeaningSelectSetup
 import com.example.learnielts.ui.screen.WordToMeaningSelect
+import com.example.learnielts.viewmodel.AuthViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.learnielts.ui.screen.LoginScreen
 
 
 enum class DrawerLevel {
@@ -75,7 +78,7 @@ enum class DrawerLevel {
     PLAN_MEANING_SELECT,
     PLAN_SELF_MEANING_SELECT,
     PLAN_WORD_MEANING_SELECT,
-    PLAN_SELF_WORD_MEANING_SELECT,
+    PLAN_SELF_WORD_MEANING_SELECT
 }
 
 class MainActivity : ComponentActivity() {
@@ -86,7 +89,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             LearnIELTSTheme {
-                AppContent(viewModel = viewModel) // 改为使用 AppContent
+                AppRoot()  // ✅ 这是你刚刚写的封装了登录判断的根函数
             }
         }
     }
@@ -133,6 +136,25 @@ fun DictionaryScreen(
 
 
 @Composable
+fun AppRoot() {
+    val authViewModel: AuthViewModel = viewModel()
+    val dictionaryViewModel: DictionaryViewModel = viewModel()
+
+    val profile by authViewModel.profile.collectAsState()
+    var showLogin by remember { mutableStateOf(profile == null) }
+
+    if (showLogin) {
+        LoginScreen(viewModel = authViewModel) {
+            showLogin = false
+        }
+    } else {
+        AppContent(viewModel = dictionaryViewModel)
+    }
+}
+
+
+
+@Composable
 fun AppContent(viewModel: DictionaryViewModel) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -162,10 +184,6 @@ fun AppContent(viewModel: DictionaryViewModel) {
     var meaningSelectScreenState by remember { mutableStateOf("setup") }
     var showWordToMeaningSelect by remember { mutableStateOf(false) }
     var wordToMeaningSelectScreenState by remember { mutableStateOf("setup") }
-
-
-
-
 
     // 自动重置菜单状态
     LaunchedEffect(drawerState.isOpen) {
@@ -215,7 +233,6 @@ fun AppContent(viewModel: DictionaryViewModel) {
                         DrawerText("选择填词") {
                             drawerLevel = DrawerLevel.PLAN_CHINESE_MENU_SELECT
                         }
-
 
                         DrawerText("拼写填词") {
                             drawerLevel = DrawerLevel.PLAN_CHINESE_MENU_SPELL
