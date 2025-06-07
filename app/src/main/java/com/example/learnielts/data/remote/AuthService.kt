@@ -1,4 +1,19 @@
+/**
+ * AuthService.kt
+ *
+ * 定义认证相关的 Retrofit 接口声明，包括：
+ *
+ * ✅ login()：以表单方式发送用户名和密码，返回 TokenResponse；
+ * ✅ register()：以 JSON 结构发送注册请求（email + password）；
+ * ✅ getProfile()：带 Authorization 头，获取当前用户信息；
+ *
+ * 接口路径均以后端 FastAPI 路由为准：/login、/register、/profile。
+ * login 接口使用 @FormUrlEncoded，其余使用默认的 JSON 格式。
+ */
+
+
 package com.example.learnielts.data.remote
+
 import com.example.learnielts.data.model.TokenResponse
 import com.example.learnielts.data.model.UserProfile
 import retrofit2.Response

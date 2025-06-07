@@ -1,3 +1,18 @@
+/**
+ * AuthViewModel.kt
+ *
+ * 该类是用户认证模块的核心 ViewModel，负责管理以下功能：
+ *
+ * ✅ 登录流程：调用 AuthService.login 接口，获取并保存 access_token；
+ * ✅ 注册流程：调用 AuthService.register 接口，注册成功后自动登录；
+ * ✅ 自动登录：在初始化时读取 SharedPreferences 中的 token 并尝试获取用户资料；
+ * ✅ 退出登录：清除 token 和用户信息；
+ *
+ * 内部使用 StateFlow 暴露 token 和 profile 状态给 UI 层；
+ * token 存储在 SharedPreferences（文件名为 "auth_prefs"）中。
+ */
+
+
 package com.example.learnielts.viewmodel
 
 import android.app.Application

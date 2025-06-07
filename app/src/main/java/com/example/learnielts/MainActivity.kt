@@ -144,21 +144,30 @@ fun AppRoot() {
     val dictionaryViewModel: DictionaryViewModel = viewModel()
 
     val profile by authViewModel.profile.collectAsState()
-    var showLogin by remember { mutableStateOf(profile == null) }
+    val showLogin = remember { mutableStateOf(profile == null) }
 
-    if (showLogin) {
+
+    if (showLogin.value) {
         LoginScreen(viewModel = authViewModel) {
-            showLogin = false
+            showLogin.value = false
         }
     } else {
-        AppContent(viewModel = dictionaryViewModel)
+        AppContent(
+            viewModel = dictionaryViewModel,
+            authViewModel = authViewModel,
+            showLogin = showLogin // ✅ 现在直接传引用即可
+        )
     }
+
 }
 
-
-
 @Composable
-fun AppContent(viewModel: DictionaryViewModel) {
+fun AppContent(
+    viewModel: DictionaryViewModel,
+    authViewModel: AuthViewModel,
+    showLogin: MutableState<Boolean>
+) {
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var drawerLevel by remember { mutableStateOf(DrawerLevel.MAIN_MENU) }
@@ -301,6 +310,17 @@ fun AppContent(viewModel: DictionaryViewModel) {
                                 .padding(16.dp)
                         )
 
+                        DrawerText(
+                            text = "退出登录",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    authViewModel.logout()
+                                    showLogin.value = true
+                                    scope.launch { drawerState.close() }
+                                }
+                                .padding(16.dp)
+                        )
 
                     }
 
