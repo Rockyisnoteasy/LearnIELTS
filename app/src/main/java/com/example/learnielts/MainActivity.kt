@@ -88,6 +88,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        FileHelper.copyOrUpdateWordbookJson(this)
+
         setContent {
             LearnIELTSTheme {
                 AppRoot()  // ✅ 这是你刚刚写的封装了登录判断的根函数

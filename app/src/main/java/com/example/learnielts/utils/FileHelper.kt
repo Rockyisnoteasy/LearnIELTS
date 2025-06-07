@@ -220,5 +220,40 @@ object FileHelper {
         }
     }
 
+    fun copyOrUpdateWordbookJson(context: Context) {
+        val targetFile = File(context.filesDir, "wordbook_android.json")
+        val assetManager = context.assets
+
+        try {
+            Log.d("调试", "📝 开始检查 wordbook_android.json 是否需要更新")
+
+            // 读取 assets 中的文件内容并计算 hash
+            val assetBytes = assetManager.open("wordbook_android.json").readBytes()
+            val assetHash = assetBytes.contentHashCode()
+            Log.d("调试", "📦 资源文件 hash = $assetHash")
+
+            val shouldUpdate = if (!targetFile.exists()) {
+                Log.d("调试", "📁 本地文件不存在，准备复制")
+                true
+            } else {
+                val localHash = targetFile.readBytes().contentHashCode()
+                Log.d("调试", "📁 本地文件 hash = $localHash")
+                assetHash != localHash
+            }
+
+            if (shouldUpdate) {
+                targetFile.outputStream().use { it.write(assetBytes) }
+                Log.d("调试", "✅ 已复制并更新 wordbook_android.json 到内部存储")
+            } else {
+                Log.d("调试", "⏩ 文件一致，无需更新 wordbook_android.json")
+            }
+
+        } catch (e: Exception) {
+            Log.e("调试", "❌ 更新 wordbook_android.json 失败：${e.message}")
+        }
+    }
+
+
+
 
 }
