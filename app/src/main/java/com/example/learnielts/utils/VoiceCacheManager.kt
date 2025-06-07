@@ -6,6 +6,13 @@ import android.util.Log
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Callback
+import okhttp3.Call
+import okhttp3.Response
+import java.io.IOException
+
 
 object VoiceCacheManager {
     private const val FILE_NAME = "wordbook_android.json"
@@ -70,7 +77,7 @@ object VoiceCacheManager {
 
         // ✅ 修改：只要映射缺失，就补写；不管文件是否存在
         if (!map.containsKey(word)) {
-            map[word] = "voice_cache/$fileName"
+            map[word] = fileName
             saveMapping(context, map)
             Log.d("调试", "✅ 写入映射：$word → voice_cache/$fileName")
         } else {
@@ -84,7 +91,7 @@ object VoiceCacheManager {
     fun getVoicePathIfExists(word: String, context: Context): File? {
         val map = loadMapping(context)
         val relative = map[word] ?: return null
-        val file = File(context.getExternalFilesDir(null), relative)
+        val file = File(getVoiceCacheDir(context), relative)
 
         Log.d("调试", "尝试查找缓存路径 for [$word] = $relative")
         Log.d("调试", "文件实际路径: ${file.absolutePath}")
@@ -92,5 +99,52 @@ object VoiceCacheManager {
 
         return if (file.exists()) file else null
     }
+
+    fun getOrDownloadVoiceFile(context: Context, word: String, onResult: (File?) -> Unit) {
+        val map = loadMapping(context)
+        val filename = map[word] ?: "${md5(word)}.mp3"  // ✅ 优先从本地映射获取文件名
+
+        val voiceDir = File(context.getExternalFilesDir(null), "voice_cache")
+        if (!voiceDir.exists()) voiceDir.mkdirs()
+
+        val localFile = File(voiceDir, filename)
+        if (localFile.exists()) {
+            Log.d("TTSCACHE", "✅ 命中本地缓存：${localFile.absolutePath}")
+            onResult(localFile)
+            return
+        }
+
+        val url = "https://api.savanalearns.fun/voice_file/$filename"  // ✅ 只传文件名
+        Log.d("TTSCACHE", "🌐 开始从服务器下载语音：$url")
+
+        val request = Request.Builder().url(url).build()
+        OkHttpClient().newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("TTSCACHE", "❌ 下载失败：${e.message}")
+                onResult(null)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    val input = response.body?.byteStream()
+                    if (input != null) {
+                        localFile.outputStream().use { fileOut ->
+                            input.copyTo(fileOut)
+                        }
+                        Log.d("TTSCACHE", "✅ 下载成功并缓存：${localFile.absolutePath}")
+                        onResult(localFile)
+                    } else {
+                        Log.e("TTSCACHE", "❌ 服务器响应为空")
+                        onResult(null)
+                    }
+                } else {
+                    Log.e("TTSCACHE", "❌ 下载失败，状态码：${response.code}")
+                    onResult(null)
+                }
+            }
+        })
+    }
+
+
 
 }

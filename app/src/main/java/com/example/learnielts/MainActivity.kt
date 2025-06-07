@@ -5,6 +5,7 @@
 // 当选择单词播放语音时，会先检查/storage/emulated/0/Android/data/com.example.learnielts/files/voice_cache
 // 下面是否有缓存，如果没有，就调用TTS API，并把语音缓存保留在/storage/emulated/0/Android/data/com.example.learnielts/files，
 // 同时，把单词-语音映射关系写在/data/data/com.example.learnielts/files/wordbook_android.json
+// // 每一次导入新的.db字典文件，都要把com.example.learnielts.data.room.database 文件里面的version = 数字+1
 
 
 package com.example.learnielts

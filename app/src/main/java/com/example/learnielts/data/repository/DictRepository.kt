@@ -19,28 +19,16 @@ class DictRepository(
         AppDatabase.getInstance(context).dictionaryDao()
     }
 
-    suspend fun playWordAudio(word: String, speed: Float = 1.0f) {
-        Log.d("调试", "DictRepository 接收到播放请求：$word")
-
-        val cachedFile = VoiceCacheManager.getVoicePathIfExists(word, context)
-
-        if (cachedFile != null) {
-            Log.d("调试", "找到缓存路径，准备播放：${cachedFile.absolutePath}")
-            AudioPlayer.play(context, cachedFile)
-            return
+    suspend fun playWordAudio(word: String, speed: Float) {
+        VoiceCacheManager.getOrDownloadVoiceFile(context, word) { file ->
+            if (file != null) {
+                AudioPlayer.play(context, file)
+            } else {
+                Log.e("调试", "❌ 无法获取语音文件")
+            }
         }
-
-        Log.d("调试", "未找到缓存，准备调用 downloadAudio")
-        val downloaded = ttsSource.downloadAudio(word, speed)
-
-        if (downloaded == null) {
-            Log.e("调试", "下载失败，播放终止")
-            return
-        }
-
-        Log.d("调试", "下载完成，准备播放：${downloaded.absolutePath}")
-        AudioPlayer.play(context, downloaded)
     }
+
 
     // ✅ 添加的数据库随机干扰词获取函数
     suspend fun getRandomDistractorWords(correct: String, count: Int = 3): List<String> {

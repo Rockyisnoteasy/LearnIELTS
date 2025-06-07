@@ -1,3 +1,5 @@
+// 每一次导入新的.db字典文件，都要把version = 数字+1
+
 package com.example.learnielts.data.room
 
 import android.content.Context
@@ -6,7 +8,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [WordEntryEntity::class], version = 1, exportSchema = false)
+@Database(entities = [WordEntryEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun dictionaryDao(): DictionaryDao
@@ -23,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "dictionary.db"
                 )
                     .createFromAsset("dictionary.db") // 👈 从 assets 中读取已转好的 SQLite 文件
+                    .fallbackToDestructiveMigration()
                     .build().also { INSTANCE = it }
             }
         }

@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.example.learnielts.data.model.RegisterRequest
 import android.widget.Toast
+import retrofit2.HttpException
+import org.json.JSONObject
 
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
@@ -73,18 +75,32 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 val response = ApiClient.authService.register(
                     RegisterRequest(email, password)
                 )
+
+                if (!response.isSuccessful) {
+                    // ❌ 注册失败，读取后端返回的错误信息
+                    val errorBody = response.errorBody()?.string()
+                    val errorMessage = try {
+                        val json = org.json.JSONObject(errorBody ?: "")
+                        json.optString("detail", "注册失败")
+                    } catch (e: Exception) {
+                        "注册失败"
+                    }
+
+                    Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
                 Log.d("注册", "✅ 注册成功，尝试登录")
-
-                // ✅ 注册成功提示
                 Toast.makeText(context, "注册成功，正在登录…", Toast.LENGTH_SHORT).show()
-
                 login(email, password)
+
             } catch (e: Exception) {
                 Log.e("注册", "❌ 注册失败: ${e.message}")
-                Toast.makeText(context, "注册失败：${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "注册失败：网络异常", Toast.LENGTH_SHORT).show()
             }
         }
     }
+
 
 
 
