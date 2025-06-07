@@ -19,6 +19,8 @@ import com.example.learnielts.data.model.UserProfile
 import retrofit2.Response
 import com.example.learnielts.data.model.RegisterRequest
 import retrofit2.http.*
+import com.example.learnielts.data.model.SessionStatus
+
 
 interface AuthService {
 
@@ -38,5 +40,9 @@ interface AuthService {
     suspend fun register(
         @Body data: RegisterRequest
     ): Response<Unit>
+
+    @GET("is_current_session")
+    suspend fun checkSession(@Header("Authorization") auth: String): SessionStatus
+
 
 }

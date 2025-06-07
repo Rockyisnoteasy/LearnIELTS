@@ -31,3 +31,6 @@ data class RegisterRequest(
     val email: String,
     val password: String
 )
+
+data class SessionStatus(val ok: Boolean)
+

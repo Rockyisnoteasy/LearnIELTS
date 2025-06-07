@@ -144,18 +144,26 @@ fun AppRoot() {
     val dictionaryViewModel: DictionaryViewModel = viewModel()
 
     val profile by authViewModel.profile.collectAsState()
+    val loggedOut by authViewModel.loggedOut.collectAsState()
     val showLogin = remember { mutableStateOf(profile == null) }
 
+    // 监听 loggedOut 状态
+    LaunchedEffect(loggedOut) {
+        if (loggedOut) {
+            showLogin.value = true
+        }
+    }
 
     if (showLogin.value) {
         LoginScreen(viewModel = authViewModel) {
             showLogin.value = false
+            authViewModel.resetLogoutFlag()
         }
     } else {
         AppContent(
             viewModel = dictionaryViewModel,
             authViewModel = authViewModel,
-            showLogin = showLogin // ✅ 现在直接传引用即可
+            showLogin = showLogin // 这个引用是可变的
         )
     }
 

@@ -28,6 +28,8 @@ import com.example.learnielts.data.model.RegisterRequest
 import android.widget.Toast
 import retrofit2.HttpException
 import org.json.JSONObject
+import kotlinx.coroutines.delay
+
 
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,6 +42,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _profile = MutableStateFlow<UserProfile?>(null)
     val profile: StateFlow<UserProfile?> = _profile
+
+    private val _toastMessage = MutableStateFlow<String?>(null)
+    val toastMessage: StateFlow<String?> = _toastMessage
+
+    private val _loggedOut = MutableStateFlow(false)
+    val loggedOut: StateFlow<Boolean> = _loggedOut
+
+
 
     init {
         // 启动时尝试自动加载
@@ -71,9 +81,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
                 val profile = ApiClient.authService.getProfile("Bearer ${response.access_token}")
                 _profile.value = profile
-                Log.d("登录", "✅ 成功获取用户信息 ${profile.email}")
+                Log.d("调试", "✅ 成功获取用户信息 ${profile.email}")
+
+                // ✅ 添加：启动10分钟一次的session校验
+                startSessionCheckLoop()
+
             } catch (e: Exception) {
-                Log.e("登录", "❌ 登录失败: ${e.message}")
+                Log.e("调试", "❌ 登录失败: ${e.message}")
             }
         }
     }
@@ -82,6 +96,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _token.value = null
         _profile.value = null
         prefs.edit().remove("access_token").apply()
+        _loggedOut.value = true
     }
 
     fun register(email: String, password: String) {
@@ -105,19 +120,50 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
 
-                Log.d("注册", "✅ 注册成功，尝试登录")
+                Log.d("调试", "✅ 注册成功，尝试登录")
                 Toast.makeText(context, "注册成功，正在登录…", Toast.LENGTH_SHORT).show()
                 login(email, password)
 
             } catch (e: Exception) {
-                Log.e("注册", "❌ 注册失败: ${e.message}")
+                Log.e("调试", "❌ 注册失败: ${e.message}")
                 Toast.makeText(context, "注册失败：网络异常", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    fun startSessionCheckLoop() {
+        viewModelScope.launch {
+            while (true) {
+                delay(5 * 60 * 1000L) // 每5分钟问询一次
+                val token = prefs.getString("access_token", null)
+                if (!token.isNullOrBlank()) {
+                    try {
+                        Log.d("调试", "发送心跳请求中...")
+                        val result = ApiClient.authService.checkSession("Bearer $token")
+                        Log.d("调试", "心跳返回：ok=${result.ok}")
+                        if (!result.ok) {
+                            logout()
+                            _toastMessage.value = "您的账号已在其他设备登录"
+                            Log.d("调试", "执行 logout()，因为 session 无效")
+                        }
+                    } catch (e: retrofit2.HttpException) {
+                        if (e.code() == 401) {
+                            Log.d("调试", "❗ 发现 token 被服务器判定为失效，执行 logout()")
+                            logout()
+                            _toastMessage.value = "您的账号已在其他设备登录"
+                        } else {
+                            Log.e("调试", "❌ Http 错误：${e.code()}，跳过")
+                        }
+                    } catch (e: Exception) {
+                        Log.d("调试", "⚠️ 无法连接服务器，跳过本次验证：${e.message}")
+                    }
+                }
+            }
+        }
+    }
 
-
-
+    fun resetLogoutFlag() {
+        _loggedOut.value = false
+    }
 }
 
