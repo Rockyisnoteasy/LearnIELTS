@@ -1,0 +1,40 @@
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log/OS Files
+*.log
+
+# Android Studio generated files and folders
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+output-metadata.json
+
+# IntelliJ
+*.iml
+.idea/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+
+# Android Profiling
+*.hprof
+.idea/
+*.iml
+.gradle/
+build/
+app/src/main/assets/poetic-nature-450906-k5-6c902b6b4010.json
+app/src/main/java/com/example/learnielts/data/datasource/GoogleTTSDataSource.kt
+app/src/main/java/com/example/learnielts/data/datasource/TencentTTSDataSource.kt
