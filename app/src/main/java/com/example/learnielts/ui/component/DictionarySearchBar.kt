@@ -2,12 +2,15 @@
 // 统一封装搜索栏组件，供首页和词典查询共用,HomeScreen、DictionaryScreen调用
 package com.example.learnielts.ui.component
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -17,7 +20,17 @@ import androidx.compose.ui.zIndex
 import com.example.learnielts.viewmodel.DictionaryViewModel
 import com.example.learnielts.viewmodel.TTSProvider
 import com.example.learnielts.utils.ChineseDefinitionExtractor
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 
+
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DictionarySearchBar(viewModel: DictionaryViewModel) {
     var input by remember { mutableStateOf("") }
@@ -26,6 +39,13 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
     val suggestions = remember { mutableStateListOf<Pair<String, String>>() }
     val showDropdown = remember { mutableStateOf(true) }
     val focusManager = LocalFocusManager.current
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showDefinitionSheet by remember { mutableStateOf(false) }
+    val configuration = LocalConfiguration.current
+    val screenHeightDp: Dp = configuration.screenHeightDp.dp
+    val highlightColor = Color.Blue
+    val baseColor = Color.Black
 
     LaunchedEffect(input) {
         suggestions.clear()
@@ -43,14 +63,14 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .zIndex(1f) // 保证悬浮在前
+            .zIndex(1f)
     ) {
         Column {
             OutlinedTextField(
                 value = input,
                 onValueChange = {
                     input = it
-                    showDropdown.value = true  // 重新启用下拉框
+                    showDropdown.value = true
                 },
                 label = { Text("输入中英文单词；右滑打开功能菜单") },
                 trailingIcon = {
@@ -71,16 +91,17 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
             ) {
                 Button(onClick = {
                     val isChinese = input.any { it.toInt() > 127 }
-                    if (isChinese) {
+                    definition = if (isChinese) {
                         val results = viewModel.queryByChineseKeyword(input)
-                        definition = if (results.isNotEmpty()) {
+                        if (results.isNotEmpty()) {
                             "匹配到以下英文单词：\n" + results.joinToString("\n")
                         } else {
                             "❌ 未找到匹配的英文单词"
                         }
                     } else {
-                        definition = viewModel.getDefinition(input)
+                        viewModel.getDefinition(input)
                     }
+                    showDefinitionSheet = true
                     showDropdown.value = false
                     suggestions.clear()
                     focusManager.clearFocus()
@@ -118,13 +139,8 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            definition?.let {
-                Text("释义：\n$it", style = MaterialTheme.typography.bodyLarge)
-            }
         }
 
-        // ✅ 悬浮提示框
         if (suggestions.isNotEmpty()) {
             Surface(
                 modifier = Modifier
@@ -144,6 +160,7 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                                 .clickable {
                                     input = word
                                     definition = viewModel.getDefinition(word)
+                                    showDefinitionSheet = true
                                     suggestions.clear()
                                     showDropdown.value = false
                                     focusManager.clearFocus()
@@ -161,8 +178,79 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                 }
             }
         }
+
+        if (definition != null && showDefinitionSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showDefinitionSheet = false },
+                sheetState = sheetState,
+                containerColor = Color.White,
+                dragHandle = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 40.dp, height = 4.dp)
+                                .background(Color.Gray, shape = RoundedCornerShape(2.dp))
+                        )
+                    }
+                }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = screenHeightDp * 0.8f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White)
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
+                    ) {
+                        Text("释义", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(12.dp))
+
+                        // ✅ ⬇️ 替换这里
+                        val highlightColor = Color.Blue
+                        val baseColor = Color.Black
+                        val annotatedText = buildAnnotatedString {
+                            val keyword = input.trim()
+                            val def = definition ?: ""
+
+                            var start = 0
+                            while (start < def.length) {
+                                val index = def.indexOf(keyword, start, ignoreCase = true)
+                                if (index == -1) {
+                                    append(def.substring(start))
+                                    break
+                                } else {
+                                    append(def.substring(start, index))
+                                    withStyle(style = SpanStyle(color = highlightColor)) {
+                                        append(def.substring(index, index + keyword.length))
+                                    }
+                                    start = index + keyword.length
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = annotatedText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = baseColor
+                        )
+                    }
+                }
+
+            }
+
+        }
     }
 }
+
 
 
 
