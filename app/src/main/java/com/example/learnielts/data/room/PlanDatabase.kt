@@ -13,16 +13,26 @@ abstract class PlanDatabase : RoomDatabase() {
         @Volatile private var INSTANCE: PlanDatabase? = null
 
         fun getInstance(context: Context, dbName: String): PlanDatabase {
-            return INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(
-                    context.applicationContext,
-                    PlanDatabase::class.java,
-                    dbName
-                )
-                    .createFromAsset("四六级/$dbName") // e.g. 六级十天冲刺1591词.db
-                    .build()
-                    .also { INSTANCE = it }
+            val assetPath = "四六级/$dbName"
+            val dbPath = context.getDatabasePath(dbName).absolutePath
+
+            try {
+                android.util.Log.d("调试", "💡 准备加载词表数据库：$assetPath → $dbPath")
+                return INSTANCE ?: synchronized(this) {
+                    Room.databaseBuilder(
+                        context.applicationContext,
+                        PlanDatabase::class.java,
+                        dbName
+                    )
+                        .createFromAsset(assetPath)
+                        .build()
+                        .also { INSTANCE = it }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("调试", "❌ 数据库加载失败：${e.message}")
+                throw e
             }
         }
+
     }
 }

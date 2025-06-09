@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+
 
 @Composable
 fun DailyWordSummaryCard(
@@ -19,9 +21,14 @@ fun DailyWordSummaryCard(
     onEditClicked: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(4.dp), // 添加间距以便阴影可见
+        colors = CardDefaults.cardColors(containerColor = Color.White), // 背景色与整体一致
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp), // 添加阴影
+        shape = MaterialTheme.shapes.medium // 可选：圆角优化
+    )
+ {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Text(planName, style = MaterialTheme.typography.titleMedium)
