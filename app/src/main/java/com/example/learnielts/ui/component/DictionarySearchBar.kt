@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
-
+import androidx.compose.material.icons.filled.Search
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,15 +50,27 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
     LaunchedEffect(input) {
         suggestions.clear()
         if (input.isNotBlank() && input.all { it.isLetter() } && showDropdown.value) {
-            suggestions += viewModel.entries.value
-                .filter { it.word.startsWith(input, ignoreCase = true) }
-                .mapNotNull { entry ->
-                    val chinese = ChineseDefinitionExtractor.simplify(entry.definition)
-                    if (chinese != null) entry.word to chinese else null
-                }
-                .take(8)
+            val keyword = input.trim()
+            val all = viewModel.entries.value
+
+            val exact = all.find { it.word.equals(keyword, ignoreCase = true) }
+            val partial = all
+                .filter { it.word.startsWith(keyword, ignoreCase = true) && it.word != exact?.word }
+                .take(9)
+
+            val result = buildList {
+                if (exact != null) add(exact)
+                addAll(partial)
+            }
+
+            suggestions += result.mapNotNull { entry ->
+                val chinese = ChineseDefinitionExtractor.simplify(entry.definition)
+                if (chinese != null) entry.word to chinese else null
+            }
         }
     }
+
+
 
     Box(
         modifier = Modifier
@@ -66,77 +78,46 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
             .zIndex(1f)
     ) {
         Column {
+
             OutlinedTextField(
                 value = input,
                 onValueChange = {
                     input = it
                     showDropdown.value = true
                 },
-                label = { Text("输入中英文单词；右滑打开功能菜单") },
+                placeholder = { Text("输入查询；右滑打开功能菜单") },
                 trailingIcon = {
-                    IconButton(onClick = {
-                        viewModel.playWord(input, context)
-                    }) {
-                        Icon(Icons.Default.VolumeUp, contentDescription = "播放发音")
+                    Row {
+                        IconButton(onClick = {
+                            viewModel.playWord(input, context)
+                        }) {
+                            Icon(Icons.Default.VolumeUp, contentDescription = "播放发音")
+                        }
+
+                        IconButton(onClick = {
+                            val isChinese = input.any { it.toInt() > 127 }
+                            definition = if (isChinese) {
+                                val results = viewModel.queryByChineseKeyword(input)
+                                if (results.isNotEmpty()) {
+                                    "匹配到以下英文单词：\n" + results.joinToString("\n")
+                                } else {
+                                    "❌ 未找到匹配的英文单词"
+                                }
+                            } else {
+                                viewModel.getDefinition(input)
+                            }
+                            showDefinitionSheet = true
+                            showDropdown.value = false
+                            suggestions.clear()
+                            focusManager.clearFocus()
+                        }) {
+                            Icon(Icons.Default.Search, contentDescription = "查询")
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Button(onClick = {
-                    val isChinese = input.any { it.toInt() > 127 }
-                    definition = if (isChinese) {
-                        val results = viewModel.queryByChineseKeyword(input)
-                        if (results.isNotEmpty()) {
-                            "匹配到以下英文单词：\n" + results.joinToString("\n")
-                        } else {
-                            "❌ 未找到匹配的英文单词"
-                        }
-                    } else {
-                        viewModel.getDefinition(input)
-                    }
-                    showDefinitionSheet = true
-                    showDropdown.value = false
-                    suggestions.clear()
-                    focusManager.clearFocus()
-                }) {
-                    Text("查询")
-                }
-
-                var showMenu by remember { mutableStateOf(false) }
-
-                Box {
-                    Button(onClick = { showMenu = true }) {
-                        Text("语音来源")
-                    }
-
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Google") },
-                            onClick = {
-                                viewModel.setTtsProvider(TTSProvider.Google)
-                                showMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Tencent") },
-                            onClick = {
-                                viewModel.setTtsProvider(TTSProvider.Tencent)
-                                showMenu = false
-                            }
-                        )
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -146,7 +127,7 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 56.dp)
-                    .heightIn(max = 300.dp),
+                    .heightIn(max = 600.dp),
                 shadowElevation = 8.dp,
                 color = Color.White,
                 tonalElevation = 4.dp,
