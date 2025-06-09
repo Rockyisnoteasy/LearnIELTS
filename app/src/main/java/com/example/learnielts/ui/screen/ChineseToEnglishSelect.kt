@@ -32,6 +32,8 @@ fun ChineseToEnglishSelect(
 
     val (word, chinese) = questions[currentIndex]
     val lowerWord = word.lowercase()
+    var isAnswering by remember { mutableStateOf(true) }
+
 
     // 当前应选的正确字母
     val currentChar = lowerWord.getOrNull(selected.length)
@@ -77,64 +79,71 @@ fun ChineseToEnglishSelect(
         Spacer(modifier = Modifier.height(180.dp))  // 候选字母按钮高度
 
         // 添加了backspace
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Button(
-                onClick = {
-                    if (selected.isNotEmpty()) {
-                        selected = selected.dropLast(1) // 删除最后一个字母
-                    }
-                },
-                modifier = Modifier.width(100.dp)
+        if (isAnswering) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text("← 回退")
+                Button(
+                    onClick = {
+                        if (selected.isNotEmpty()) {
+                            selected = selected.dropLast(1) // 删除最后一个字母
+                        }
+                    },
+                    modifier = Modifier.width(100.dp)
+                ) {
+                    Text("← 回退")
+                }
             }
         }
+
 
 
         // 候选字母按钮
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 32.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            candidates.forEach { option ->
-                Button(
-                    onClick = {
-                        val newInput = selected + option
-                        if (newInput.length == lowerWord.length) {
-                            selected = newInput
+        if (isAnswering) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                candidates.forEach { option ->
+                    Button(
+                        onClick = {
+                            val newInput = selected + option
+                            if (newInput.length == lowerWord.length) {
+                                selected = newInput
+                                isAnswering = false  // ✅ 拼写完成后，隐藏候选按钮
 
-                            scope.launch {
-                                kotlinx.coroutines.delay(1000)
-                                results.add(
-                                    Quad(
-                                        word = word,
-                                        chinese = chinese,
-                                        userAnswer = newInput,
-                                        correct = newInput.equals(word, ignoreCase = true)
+                                scope.launch {
+                                    delay(1000)  // ✅ 展示完整单词 1 秒
+                                    results.add(
+                                        Quad(
+                                            word = word,
+                                            chinese = chinese,
+                                            userAnswer = newInput,
+                                            correct = newInput.equals(word, ignoreCase = true)
+                                        )
                                     )
-                                )
-                                selected = ""
-                                currentIndex++
+                                    selected = ""
+                                    currentIndex++
+                                    isAnswering = true  // ✅ 恢复显示候选按钮
+                                }
+                            } else {
+                                selected = newInput
                             }
-                        } else {
-                            selected = newInput
-                        }
-                    },
-                    modifier = Modifier.size(64.dp)
-                ) {
-                    Text(option.toString(), style = MaterialTheme.typography.headlineSmall)
+                        },
+                        modifier = Modifier.size(64.dp)
+                    ) {
+                        Text(option.toString(), style = MaterialTheme.typography.headlineSmall)
+                    }
                 }
-
             }
         }
+
     }
 }
 
