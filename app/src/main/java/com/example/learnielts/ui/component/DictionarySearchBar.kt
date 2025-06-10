@@ -28,6 +28,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.text.font.FontWeight
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,15 +71,12 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
         }
     }
 
-
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .zIndex(1f)
     ) {
         Column {
-
             OutlinedTextField(
                 value = input,
                 onValueChange = {
@@ -117,8 +115,6 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                 },
                 modifier = Modifier.fillMaxWidth()
             )
-
-
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -192,42 +188,151 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                             .verticalScroll(rememberScrollState())
                             .padding(16.dp)
                     ) {
-                        Text("释义", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(12.dp))
+                        // 显示当前搜索的单词，增加字重
+                        Text(
+                            text = input,
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold), // 增加字重
+                            color = Color.Black,
+                            modifier = Modifier
+                                .padding(top = 8.dp, bottom = 16.dp)
+                        )
 
-                        // ✅ ⬇️ 替换这里
+                        val def = definition ?: ""
+                        val chineseDefinitionStart = def.indexOf("中文释义：")
+                        val processedDefinition = if (chineseDefinitionStart != -1) {
+                            def.substring(chineseDefinitionStart)
+                        } else {
+                            def
+                        }
+
                         val highlightColor = Color.Blue
                         val baseColor = Color.Black
-                        val annotatedText = buildAnnotatedString {
-                            val keyword = input.trim()
-                            val def = definition ?: ""
 
-                            var start = 0
-                            while (start < def.length) {
-                                val index = def.indexOf(keyword, start, ignoreCase = true)
-                                if (index == -1) {
-                                    append(def.substring(start))
-                                    break
-                                } else {
-                                    append(def.substring(start, index))
-                                    withStyle(style = SpanStyle(color = highlightColor)) {
-                                        append(def.substring(index, index + keyword.length))
+                        // 定义所有可能的标题
+                        val allHeaders = listOf(
+                            "中文释义：", "词性：", "名词变形：", "动词变形：",
+                            "常见例句：", "常见短语与搭配：", "近义词：",
+                            "常见错误：", "补充说明：", "近义词（Synonyms）：",
+                            "时态变化："
+                        )
+
+                        // 创建自定义的 TextStyle，调整行高
+                        val customBodyLarge = MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 2.0f // 增加 50% 行高
+                        )
+                        // 小标题字号放大
+                        val customTitleMedium = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = MaterialTheme.typography.bodyLarge.fontSize * 1.2f, // 小标题字号比bodyLarge大1.2倍
+                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.8f // 小标题行高也相应调整
+                        )
+                        // 为“常见例句”中的中文定义新的 TextStyle
+                        val exampleChineseStyle = MaterialTheme.typography.bodySmall.copy( // 较小字号
+                            color = Color.Gray, // 浅色
+                            lineHeight = MaterialTheme.typography.bodySmall.fontSize * 1.5f // 适当行高
+                        )
+
+                        // 分割处理后的定义为行
+                        val lines = processedDefinition.lines()
+
+                        // 用于记录当前行是否是小标题 (外部循环的当前头部)
+                        var currentHeaderInScope: String? = null
+
+                        // 逐行渲染内容
+                        lines.forEachIndexed { index, line ->
+                            val trimmedLine = line.trim()
+                            var isHeader = false
+
+                            // 检查当前行是否是小标题
+                            for (header in allHeaders) {
+                                if (trimmedLine.startsWith(header)) {
+                                    // 仅当不是第一个标题 "中文释义："时才添加分隔符
+                                    if (header != "中文释义：") {
+                                        Spacer(Modifier.height(12.dp)) // 分隔符上方间距
+                                        Divider(
+                                            color = Color.LightGray.copy(alpha = 0.5f),
+                                            thickness = 1.dp
+                                        ) // 浅色分隔符
+                                        Spacer(Modifier.height(12.dp)) // 分隔符下方间距
                                     }
-                                    start = index + keyword.length
+                                    isHeader = true
+                                    currentHeaderInScope = header // 更新当前所处的小标题
+                                    break
+                                }
+                            }
+
+                            // 英文例句行判断：以 "-" 开头，且当前是“常见例句：”段落
+                            val isEnglishExampleLine =
+                                trimmedLine.startsWith("-") && currentHeaderInScope == "常见例句：" && !isHeader // 修正冒号
+
+                            // 识别中文例句行：如果不是英文例句行，但包含中文字符，且当前是“常见例句：”段落
+                            // 且当前行不是小标题，以避免中文小标题被误判为中文例句行
+                            val isChineseExampleLine =
+                                !isEnglishExampleLine && trimmedLine.any { it.toInt() > 127 } && currentHeaderInScope == "常见例句：" && !isHeader // 修正冒号
+
+
+                            // 构建高亮文本
+                            val annotatedText = buildAnnotatedString {
+                                val keyword = input.trim()
+                                var start = 0
+                                // 对每一行也应用关键词高亮
+                                while (start < trimmedLine.length) {
+                                    val index =
+                                        trimmedLine.indexOf(keyword, start, ignoreCase = true)
+                                    if (index == -1) {
+                                        append(trimmedLine.substring(start))
+                                        break
+                                    } else {
+                                        append(trimmedLine.substring(start, index))
+                                        withStyle(
+                                            style = SpanStyle(
+                                                color = highlightColor,
+                                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        ) { // 小标题加粗
+                                            append(
+                                                trimmedLine.substring(
+                                                    index,
+                                                    index + keyword.length
+                                                )
+                                            )
+                                        }
+                                        start = index + keyword.length
+                                    }
+                                }
+                            }
+
+                            // 渲染 Text
+                            Text(
+                                text = annotatedText,
+                                style = when {
+                                    isHeader -> customTitleMedium.copy(fontWeight = FontWeight.Bold) // 小标题整体加粗
+                                    isChineseExampleLine -> exampleChineseStyle // 常见例句中文样式
+                                    else -> customBodyLarge
+                                },
+                                color = if (isChineseExampleLine) exampleChineseStyle.color else baseColor // 确保颜色也应用到中文例句
+                            )
+
+                            // 如果是小标题，在其下方添加一个空行
+                            if (isHeader) {
+                                Spacer(Modifier.height(8.dp)) // 小标题下方空行
+                            }
+                            // 如果是常见例句中的中文行，且不是最后一个中文行，则空一行
+                            else if (isChineseExampleLine) {
+                                // 检查下一行是否还属于当前例句的中文部分（不以'-'开头且包含中文）
+                                val nextLineIndex = index + 1
+                                val hasMoreChineseExamples = nextLineIndex < lines.size &&
+                                        !lines[nextLineIndex].trim().startsWith("-") &&
+                                        lines[nextLineIndex].trim().any { it.toInt() > 127 } &&
+                                        currentHeaderInScope == "常见例句：" // 修正冒号
+
+                                if (!hasMoreChineseExamples) { // 只有当没有更多中文例句时才添加空行，避免连续空行
+                                    Spacer(Modifier.height(8.dp)) // 常见例句中文下方空行
                                 }
                             }
                         }
-
-                        Text(
-                            text = annotatedText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = baseColor
-                        )
                     }
                 }
-
             }
-
         }
     }
 }
