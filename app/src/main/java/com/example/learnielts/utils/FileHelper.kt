@@ -12,6 +12,8 @@ import java.util.Locale
 import com.example.learnielts.utils.PlanInfo
 import com.example.learnielts.data.room.PlanWordDao
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 object FileHelper {
@@ -54,11 +56,23 @@ object FileHelper {
             }?.toSet()?.size ?: 0
 
         return try {
+            // ✅ 在打开数据库前，确保文件已复制。这里必须用runBlocking，因为此函数不是suspend
+            runBlocking { // 添加 runBlocking 包裹，确保 copyOrUpdatePlanDb 在 IO 线程执行
+                withContext(Dispatchers.IO) {
+                    copyOrUpdatePlanDb(context, category, selectedPlan) // selectedPlan 是不带 .db 后缀的原始文件名
+                }
+            }
+
+
             val dbName = "$selectedPlan.db"
             val db = com.example.learnielts.data.room.PlanDatabase.getInstance(context, dbName)
             val dao = db.planWordDao()
             Log.d("调试", "📊 数据库打开成功：$dbName")
-            val total = runBlocking { dao.countAllWords() }  // ⚠️ runBlocking 用于同步调用 suspend 函数
+            val total = runBlocking { // 保持 runBlocking 因为 calculateProgress 是非 suspend 函数
+                withContext(Dispatchers.IO) { // 确保 Room 操作在IO线程执行
+                    dao.countAllWords()
+                }
+            }
             Log.d("调试", "📊 总词数 = $total，已学 = $learnedWords")
             Pair(learnedWords, total)
         } catch (e: Exception) {
@@ -67,33 +81,10 @@ object FileHelper {
         }
     }
 
-
-
-//    fun saveCurrentPlan(
-//        context: Context,
-//        planName: String,
-//        category: String,
-//        selectedPlan: String,
-//        dailyCount: Int
-//    ) {
-//        val json = JSONObject().apply {
-//            put("planName", planName)
-//            put("category", category)
-//            put("selectedPlan", selectedPlan)
-//            put("dailyCount", dailyCount)
-//        }
-//
-//        val file = File(context.getExternalFilesDir(null), "current_plan.json")
-//        file.writeText(json.toString(2))
-//        Log.d("调试", "✅ current_plan.json 已保存：$planName")
-//    }
-
-
-
     suspend fun generateTodayWordListFromPlan(
         context: Context,
         category: String,
-        selectedPlan: String,
+        selectedPlan: String, // 不带 .db 后缀的原始文件名
         planName: String,
         dailyCount: Int
     ) {
@@ -121,12 +112,20 @@ object FileHelper {
 
             Log.d("调试", "📖 已学单词读取完成，总数=${learned.size}")
 
+            // ✅ 在打开数据库前，确保文件已复制
+            withContext(Dispatchers.IO) { // 确保文件复制也在IO线程
+                copyOrUpdatePlanDb(context, category, selectedPlan)
+            }
+
+
             // 打开数据库
             val dbName = "$selectedPlan.db"
             val db = com.example.learnielts.data.room.PlanDatabase.getInstance(context, dbName)
             val dao = db.planWordDao()
             Log.d("调试", "📘 打开词表数据库成功：$dbName")
-            val newWords = dao.getUnlearnedWords(learned.toList(), dailyCount)
+            val newWords = withContext(Dispatchers.IO) { // 确保 Room 操作在IO线程执行
+                dao.getUnlearnedWords(learned.toList(), dailyCount)
+            }
             Log.d("调试", "✅ 成功获取未学单词 ${newWords.size} 个")
 
             if (newWords.isNotEmpty()) {
@@ -291,7 +290,50 @@ object FileHelper {
         }
     }
 
+    /**
+     * 检查并复制/更新学习计划数据库文件到应用内部存储。
+     * 如果目标文件不存在，或者 assets 中的文件与目标文件不一致，则复制。
+     *
+     * @param context 应用上下文
+     * @param category 学习计划分类，例如 "四六级", "考研", "雅思" 等
+     * @param rawDbFileName 原始数据库文件名 (不带.db后缀，例如 "考研大纲词汇5511词")
+     */
+    fun copyOrUpdatePlanDb(context: Context, category: String, rawDbFileName: String) {
+        val fullDbFileName = "$rawDbFileName.db"
+        // Room 数据库的默认存储路径是 context.getDatabasePath()
+        val targetFile = context.getDatabasePath(fullDbFileName)
+        val assetPath = "$category/$fullDbFileName" // 构建 assets 中的完整路径
+        val assetManager = context.assets
 
+        try {
+            Log.d("调试", "📝 开始检查学习计划数据库 $fullDbFileName ($category) 是否需要更新")
 
+            // 读取 assets 中的文件内容并计算 hash
+            val assetBytes = assetManager.open(assetPath).readBytes()
+            val assetHash = assetBytes.contentHashCode()
+            Log.d("调试", "📦 资源文件 $assetPath hash = $assetHash")
+
+            val shouldUpdate = if (!targetFile.exists()) {
+                Log.d("调试", "📁 本地学习计划数据库 $fullDbFileName 不存在，准备复制")
+                true
+            } else {
+                val localHash = targetFile.readBytes().contentHashCode()
+                Log.d("调试", "📁 本地学习计划数据库 $fullDbFileName hash = $localHash")
+                assetHash != localHash
+            }
+
+            if (shouldUpdate) {
+                // 确保父目录存在 (即 databases 目录)
+                targetFile.parentFile?.mkdirs()
+                targetFile.outputStream().use { it.write(assetBytes) }
+                Log.d("调试", "✅ 已复制并更新学习计划数据库 $fullDbFileName 到内部存储")
+            } else {
+                Log.d("调试", "⏩ 学习计划数据库 $fullDbFileName 文件一致，无需更新")
+            }
+
+        } catch (e: Exception) {
+            Log.e("调试", "❌ 更新学习计划数据库 $fullDbFileName 失败：${e.message}")
+        }
+    }
 
 }

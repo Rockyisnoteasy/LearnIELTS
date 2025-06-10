@@ -1,0 +1,5 @@
+词库名（文件名）	RoomDatabase 类名	数据库文件名
+考研大纲词汇5511词.db	PostgraduateExamDatabase	"postgraduate_exam.db"
+六级核心高频突破2140词.db	CET6CoreDatabase	"cet6_core.db"
+六级十天冲刺1591词.db	CET6SprintDatabase	"cet6_sprint.db"
+四级深度记忆核心词1905词.db	CET4CoreDatabase	"cet4_core.db"

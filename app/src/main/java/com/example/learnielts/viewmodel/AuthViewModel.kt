@@ -134,7 +134,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun startSessionCheckLoop() {
         viewModelScope.launch {
             while (true) {
-                delay(5 * 60 * 1000L) // 每5分钟问询一次
+                delay(60 * 1000L) // 每5分钟问询一次
                 val token = prefs.getString("access_token", null)
                 if (!token.isNullOrBlank()) {
                     try {

@@ -16,14 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import android.util.Log
 import androidx.compose.ui.platform.LocalContext
-import android.content.Context
-import org.json.JSONArray
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
-import com.example.learnielts.utils.ExcelWordLoader
 import com.example.learnielts.utils.FileHelper
 import com.example.learnielts.utils.PlanInfo
 import kotlinx.coroutines.launch
@@ -35,7 +28,7 @@ fun LearningPlanScreen(
     onPlanSelected: (String) -> Unit
 ) {
     // 一级分类数据
-    val categories = listOf("考研", "四六级", "雅思")
+    val categories = listOf("考研", "四六级", "雅思", "高考", "GRE", "托福", "英专") // ✅ 确保这里包含所有你的分类
     val context = LocalContext.current
     var planNameInput by remember { mutableStateOf("") }
 
@@ -51,9 +44,8 @@ fun LearningPlanScreen(
 
     var showDialog by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
-    var selectedPlanName by remember { mutableStateOf<String?>(null) }
+    var selectedPlanName by remember { mutableStateOf<String?>(null) } // 这里的 selectedPlanName 是不带 .db 后缀的原始文件名
     var showNameConflictDialog by remember { mutableStateOf(false) }
-
 
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -101,7 +93,7 @@ fun LearningPlanScreen(
             LazyColumn {
                 items(plans) { plan ->
                     Text(
-                        text = plan,
+                        text = plan, // plan 现在是不带 .db 后缀的原始文件名
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -160,12 +152,17 @@ fun LearningPlanScreen(
                             } else {
                                 Log.d("调试", "✅ 新建学习计划：$planName")
 
+                                // ✅ 在这里调用 FileHelper.copyOrUpdatePlanDb
+                                // selectedCategory 是父文件夹名 (例如 "四六级")
+                                // selectedPlanName 是不带 .db 的文件名 (例如 "四级深度记忆核心词1905词")
+                                FileHelper.copyOrUpdatePlanDb(context, selectedCategory!!, selectedPlanName!!)
+
                                 FileHelper.addPlanToCurrentList(
                                     context,
                                     PlanInfo(
                                         planName = planName,
                                         category = selectedCategory!!,
-                                        selectedPlan = selectedPlanName!!,
+                                        selectedPlan = selectedPlanName!!, // 传递不带 .db 的文件名
                                         dailyCount = count
                                     )
                                 )
@@ -174,7 +171,7 @@ fun LearningPlanScreen(
                                     FileHelper.generateTodayWordListFromPlan(
                                         context,
                                         selectedCategory!!,
-                                        selectedPlanName!!,
+                                        selectedPlanName!!, // 传递不带 .db 的文件名
                                         planName,
                                         count
                                     )
