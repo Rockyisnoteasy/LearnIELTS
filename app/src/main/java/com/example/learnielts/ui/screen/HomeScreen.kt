@@ -22,6 +22,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.learnielts.viewmodel.AuthViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 @Composable
@@ -38,9 +40,16 @@ fun HomeScreen(
         }
     }
 
-    val allPlans = remember { FileHelper.loadAllPlans(context) }
     val scope = rememberCoroutineScope()
     val authViewModel: AuthViewModel = viewModel()
+
+    // ✅ 改动：从 ViewModel 的 StateFlow 中收集计划列表，使其可被观察
+    val allPlans by authViewModel.plans.collectAsState()
+
+    // ✅ 改动：确保在 HomeScreen 首次加载时，能从文件初始化一次状态
+    LaunchedEffect(Unit) {
+        authViewModel.loadPlans()
+    }
 
 
     Column(
@@ -50,20 +59,15 @@ fun HomeScreen(
             .padding(16.dp)
     ) {
 
-    DictionarySearchBar(viewModel)
+        DictionarySearchBar(viewModel)
 
         Spacer(modifier = Modifier.height(16.dp))
 
         if (allPlans.isEmpty()) {
             Text("尚未创建任何学习计划", style = MaterialTheme.typography.bodyLarge)
         } else {
+            // ✅ 现在 allPlans 是一个响应式状态，UI会随其变化自动更新
             allPlans.forEach { plan ->
-                val todayWords = FileHelper.getWordsForDate(
-                    context, today, plan.planName
-                )
-                val reviewWords = FileHelper.getWordsForDate(
-                    context, yesterday, plan.planName
-                )
                 val progress = FileHelper.calculateProgress(
                     context = context,
                     planName = plan.planName,
@@ -73,48 +77,43 @@ fun HomeScreen(
                 Log.d("调试", "📈 显示计划：${plan.planName}，进度 = ${progress.first} / ${progress.second}")
 
                 val remainingDays = if (progress.second > 0 && plan.dailyCount > 0) {
-                    val remaining = (progress.second - progress.first).coerceAtLeast(0)
-                    (remaining + plan.dailyCount - 1) / plan.dailyCount  // 向上取整
+                    (progress.second - progress.first + plan.dailyCount - 1).coerceAtLeast(0) / plan.dailyCount
                 } else {
                     0
                 }
 
-
-                Spacer(modifier = Modifier.height(16.dp))
                 DailyWordSummaryCard(
                     planName = plan.planName,
-                    newCount = todayWords.size,
-                    reviewCount = reviewWords.size,
+                    newCount = FileHelper.getWordsForDate(context, today, plan.planName).size,
+                    reviewCount = FileHelper.getWordsForDate(context, yesterday, plan.planName).size,
                     totalProgress = progress,
                     remainingDays = remainingDays,
                     onStartClicked = {
                         scope.launch {
                             Log.d("调试", "🚀 点击开始背单词：${plan.planName}")
 
-                            // 1. ✅ 生成今日单词
-                            val newWords = FileHelper.generateTodayWordListFromPlan(
-                                context,
-                                plan.category,
-                                plan.selectedPlan,
-                                plan.planName,
-                                plan.dailyCount
-                            )
+                            val newWords = withContext(Dispatchers.IO) {
+                                FileHelper.generateTodayWordListFromPlan(
+                                    context,
+                                    plan.category,
+                                    plan.selectedPlan,
+                                    plan.planName,
+                                    plan.dailyCount
+                                )
+                            }
                             Log.d("调试", "📦 单词生成完毕，共 ${newWords.size} 个新词")
 
-                            // 2. ✅ 上传新生成的单词
                             plan.serverId?.let { serverId ->
                                 authViewModel.uploadDailyWords(serverId, newWords)
                             }
 
-                            // 3. ✅ UI 跳转
-                            val updatedTodayWords = FileHelper.getWordsForDate(
-                                context, today, plan.planName
-                            )
+                            val updatedTodayWords = FileHelper.getWordsForDate(context, today, plan.planName)
                             onStartClicked(updatedTodayWords)
                         }
                     },
                     onEditClicked = onEnterLearningPlan
                 )
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }

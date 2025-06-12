@@ -36,13 +36,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.example.learnielts.data.model.DailyWords
 import com.example.learnielts.data.model.PlanCreateRequest
-
 import com.example.learnielts.utils.PlanInfo
-
 import kotlinx.coroutines.withContext
-
-
-
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -54,6 +49,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _profile = MutableStateFlow<UserProfile?>(null)
     val profile: StateFlow<UserProfile?> = _profile
+
+    // 用于存放学习计划列表的状态
+    private val _plans = MutableStateFlow<List<PlanInfo>>(emptyList())
+    val plans: StateFlow<List<PlanInfo>> = _plans
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage
@@ -78,9 +77,30 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (e: Exception) {
                     Log.e("调试", "❌ 自动登录失败：${e.message}")
                     // 如果 token 无效，也应该登出
-                    logout()
+                    handleApiError(e, "自动登录")
                 }
             }
+        }
+    }
+
+    // 统一的API错误处理函数
+    private fun handleApiError(e: Exception, fromFunction: String) {
+        if (e is HttpException && e.code() == 401) {
+            Log.d("调试", "❗ 在 '$fromFunction' 中检测到401，执行登出")
+            logout()
+            _toastMessage.value = "您的会话已过期或在其他设备登录"
+        } else {
+            Log.e("调试", "❌ 在 '$fromFunction' 中发生API错误: ${e.message}")
+            // 可选：显示一个通用的错误提示
+            // Toast.makeText(context, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 从本地文件加载计划到 StateFlow 中
+    fun loadPlans() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _plans.value = FileHelper.loadAllPlans(context)
+            Log.d("调试", "UI 状态已更新，当前计划数: ${_plans.value.size}")
         }
     }
 
@@ -107,29 +127,31 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
             } catch (e: Exception) {
                 Log.e("调试", "❌ 登录失败: ${e.message}")
+                Toast.makeText(context, "登录失败，请检查账号或密码", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    // ✅ 新增：从服务器同步学习计划的函数
+    // 从服务器同步学习计划的函数
     private suspend fun syncPlans() {
-        val currentToken = _token.value ?: return
+        val currentToken = "Bearer ${_token.value}"
         try {
             Log.d("调试", "🔄 开始从服务器同步学习计划...")
-            val plansFromServer = ApiClient.authService.getPlans("Bearer $currentToken")
+            val plansFromServer = ApiClient.authService.getPlans(currentToken)
             Log.d("调试", "✅ 从服务器获取到 ${plansFromServer.size} 个学习计划")
 
-            // 使用 IO 调度器执行文件操作
-            viewModelScope.launch(Dispatchers.IO) {
+            // 使用 withContext 确保文件操作完成后再继续
+            withContext(Dispatchers.IO) {
                 FileHelper.overwriteLocalPlansFromServer(context, plansFromServer)
             }
 
+            // ✅ 关键修正：操作完成后，调用 loadPlans() 刷新UI状态
+            loadPlans()
+
         } catch (e: Exception) {
-            Log.e("调试", "❌ 同步学习计划失败: ${e.message}")
-            e.printStackTrace()
+            handleApiError(e, "同步计划")
         }
     }
-
 
     fun logout() {
         _token.value = null
@@ -170,7 +192,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ✅ 新增：创建新计划并上传
+    // 创建新计划并上传
     fun createNewPlan(planName: String, category: String, selectedPlan: String, dailyCount: Int) {
         viewModelScope.launch {
             val currentToken = "Bearer ${_token.value}"
@@ -191,10 +213,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.IO) {
                     FileHelper.addPlanToCurrentList(context, newPlanInfo)
                 }
+                // 云端学习计划下载成功后，立即加载到状态中以刷新UI
+                loadPlans()
 
             } catch (e: Exception) {
                 Log.e("调试", "❌ 创建新计划失败: ${e.message}")
-                Toast.makeText(context, "创建失败: ${e.message}", Toast.LENGTH_LONG).show()
+                handleApiError(e, "创建新计划")
             }
         }
     }
@@ -213,13 +237,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.IO) {
                     FileHelper.deletePlan(context, planInfo.planName)
                 }
+                loadPlans()
             } catch (e: Exception) {
-                Log.e("调试", "❌ 删除计划失败: ${e.message}")
+                handleApiError(e, "删除计划")
             }
         }
     }
 
-    // ✅ 新增：上传每日单词列表
+    // 上传每日单词列表
     fun uploadDailyWords(planId: Int, words: List<String>) {
         if (words.isEmpty()) return
         viewModelScope.launch {
@@ -230,7 +255,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 ApiClient.authService.addDailyWords(currentToken, planId, dailyWords)
                 Log.d("调试", "✅ 每日单词列表已上传, Plan ID: $planId, Date: $dateStr")
             } catch (e: Exception) {
-                Log.e("调试", "❌ 上传每日单词失败: ${e.message}")
+                handleApiError(e, "上传每日单词")
             }
         }
     }
@@ -259,7 +284,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             Log.e("调试", "❌ Http 错误：${e.code()}，跳过")
                         }
                     } catch (e: Exception) {
-                        Log.d("调试", "⚠️ 无法连接服务器，跳过本次验证：${e.message}")
+                        handleApiError(e, "心跳检测")
                     }
                 }
             }
