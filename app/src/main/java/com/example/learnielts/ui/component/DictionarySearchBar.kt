@@ -29,6 +29,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -212,23 +213,22 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                         val allHeaders = listOf(
                             "中文释义：", "词性：", "名词变形：", "动词变形：",
                             "常见例句：", "常见短语与搭配：", "近义词：",
-                            "常见错误：", "补充说明：", "近义词（Synonyms）：",
-                            "时态变化："
+                            "常见错误：", "补充说明：", "近义词（Synonyms）："
                         )
 
                         // 创建自定义的 TextStyle，调整行高
                         val customBodyLarge = MaterialTheme.typography.bodyLarge.copy(
-                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 2.0f // 增加 50% 行高
+                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.8f // 增加行高，例如从 1.5f 调整为 1.8f
                         )
                         // 小标题字号放大
                         val customTitleMedium = MaterialTheme.typography.titleMedium.copy(
                             fontSize = MaterialTheme.typography.bodyLarge.fontSize * 1.2f, // 小标题字号比bodyLarge大1.2倍
-                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.8f // 小标题行高也相应调整
+                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 2.0f // 增加行高，例如从 1.8f 调整为 2.0f
                         )
                         // 为“常见例句”中的中文定义新的 TextStyle
                         val exampleChineseStyle = MaterialTheme.typography.bodySmall.copy( // 较小字号
                             color = Color.Gray, // 浅色
-                            lineHeight = MaterialTheme.typography.bodySmall.fontSize * 1.5f // 适当行高
+                            lineHeight = MaterialTheme.typography.bodySmall.fontSize * 1.8f // 适当行高
                         )
 
                         // 分割处理后的定义为行
@@ -247,12 +247,9 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                                 if (trimmedLine.startsWith(header)) {
                                     // 仅当不是第一个标题 "中文释义："时才添加分隔符
                                     if (header != "中文释义：") {
-                                        Spacer(Modifier.height(12.dp)) // 分隔符上方间距
-                                        Divider(
-                                            color = Color.LightGray.copy(alpha = 0.5f),
-                                            thickness = 1.dp
-                                        ) // 浅色分隔符
-                                        Spacer(Modifier.height(12.dp)) // 分隔符下方间距
+                                        Spacer(Modifier.height(18.dp)) // 从 12.dp 增加到 18.dp，保持同步变大
+                                        Divider(color = Color.LightGray.copy(alpha = 0.5f), thickness = 1.dp) // 浅色分隔符
+                                        Spacer(Modifier.height(18.dp)) // 从 12.dp 增加到 18.dp，保持同步变大
                                     }
                                     isHeader = true
                                     currentHeaderInScope = header // 更新当前所处的小标题
@@ -260,14 +257,24 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
                                 }
                             }
 
-                            // 英文例句行判断：以 "-" 开头，且当前是“常见例句：”段落
-                            val isEnglishExampleLine =
-                                trimmedLine.startsWith("-") && currentHeaderInScope == "常见例句：" && !isHeader // 修正冒号
+                            // 判断是否包含中文字符的辅助函数，排除特定标点
+                            fun containsActualChinese(text: String): Boolean {
+                                return text.any { char ->
+                                    val script = Character.UnicodeScript.of(char.toInt())
+                                    script == Character.UnicodeScript.HAN // 仅判断是否为汉字脚本
+                                    // 或者更宽泛一点，排除常见全角符号
+                                    // && char != '—' && char != '：' && char != '，' // 排除你已知会导致问题的特定全角符号
+                                }
+                            }
 
-                            // 识别中文例句行：如果不是英文例句行，但包含中文字符，且当前是“常见例句：”段落
+                            // 英文例句行判断：以 "-" 开头，且当前在“常见例句：”段落内
+                            val isEnglishExampleLine =
+                                trimmedLine.startsWith("-") && currentHeaderInScope == "常见例句：" && !isHeader //
+
+                            // 识别中文例句行：不以 "-" 开头（排除英文例句），但包含中文字符，且当前在“常见例句：”段落内，并且本身不是小标题
                             // 且当前行不是小标题，以避免中文小标题被误判为中文例句行
                             val isChineseExampleLine =
-                                !isEnglishExampleLine && trimmedLine.any { it.toInt() > 127 } && currentHeaderInScope == "常见例句：" && !isHeader // 修正冒号
+                                !trimmedLine.startsWith("-") && containsActualChinese(trimmedLine) && currentHeaderInScope == "常见例句：" && !isHeader // 修正判断逻辑
 
 
                             // 构建高亮文本
@@ -314,19 +321,20 @@ fun DictionarySearchBar(viewModel: DictionaryViewModel) {
 
                             // 如果是小标题，在其下方添加一个空行
                             if (isHeader) {
-                                Spacer(Modifier.height(8.dp)) // 小标题下方空行
+                                Spacer(Modifier.height(12.dp)) // 小标题下方空行
                             }
                             // 如果是常见例句中的中文行，且不是最后一个中文行，则空一行
                             else if (isChineseExampleLine) {
-                                // 检查下一行是否还属于当前例句的中文部分（不以'-'开头且包含中文）
+                                // 检查下一行是否还属于当前例句的中文部分
                                 val nextLineIndex = index + 1
                                 val hasMoreChineseExamples = nextLineIndex < lines.size &&
-                                        !lines[nextLineIndex].trim().startsWith("-") &&
-                                        lines[nextLineIndex].trim().any { it.toInt() > 127 } &&
-                                        currentHeaderInScope == "常见例句：" // 修正冒号
+                                        !lines[nextLineIndex].trim()
+                                            .startsWith("-") && // 下一行不以'-'开头
+                                        containsActualChinese(lines[nextLineIndex].trim()) && // 下一行包含实际中文字符
+                                        currentHeaderInScope == "常见例句：" // 仍在常见例句段落
 
                                 if (!hasMoreChineseExamples) { // 只有当没有更多中文例句时才添加空行，避免连续空行
-                                    Spacer(Modifier.height(8.dp)) // 常见例句中文下方空行
+                                    Spacer(Modifier.height(12.dp)) // 常见例句中文下方空行
                                 }
                             }
                         }

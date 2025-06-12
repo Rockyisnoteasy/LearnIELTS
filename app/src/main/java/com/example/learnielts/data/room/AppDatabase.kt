@@ -8,7 +8,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [WordEntryEntity::class], version = 15, exportSchema = false)
+@Database(entities = [WordEntryEntity::class], version = 17, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun dictionaryDao(): DictionaryDao

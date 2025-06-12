@@ -7,6 +7,9 @@
 // 同时，把单词-语音映射关系写在/data/data/com.example.learnielts/files/wordbook_android.json
 // // 每一次导入新的.db字典文件，都要把com.example.learnielts.data.room.database 文件里面的version = 数字+1
 // 在AuthViewModel.kt，修改每次app向服务器问询自身登录状态的时间，目前是5分钟。
+// 用户创建学习计划后，每日的学习计划word_schedule 目录会上传到数据库的plan_daily_words，而current_plan.json会上传到数据库的learning_plans
+// csv词典，要先清洗*,```，plaintext,markdown,和单词：前面的\n，才可以转换为.db文件，词典.db文件可以提取出word，然后从提取出的word里面，跟word_book.json
+// 里面的单词做对比，不在里面的，就说明没有语音，就调取谷歌TTS。
 
 
 package com.example.learnielts
