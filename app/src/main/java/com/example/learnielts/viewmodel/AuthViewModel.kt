@@ -6,6 +6,7 @@
  * ✅ 登录流程：调用 AuthService.login 接口，获取并保存 access_token；
  * ✅ 注册流程：调用 AuthService.register 接口，注册成功后自动登录；
  * ✅ 自动登录：在初始化时读取 SharedPreferences 中的 token 并尝试获取用户资料；
+ * ✅ 学习计划同步：登录成功后，从服务器同步用户的学习计划数据。
  * ✅ 退出登录：清除 token 和用户信息；
  *
  * 内部使用 StateFlow 暴露 token 和 profile 状态给 UI 层；
@@ -26,9 +27,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.example.learnielts.data.model.RegisterRequest
 import android.widget.Toast
+import com.example.learnielts.utils.FileHelper
+import kotlinx.coroutines.Dispatchers
 import retrofit2.HttpException
 import org.json.JSONObject
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.*
+import com.example.learnielts.data.model.DailyWords
+import com.example.learnielts.data.model.PlanCreateRequest
+
+import com.example.learnielts.utils.PlanInfo
+
+import kotlinx.coroutines.withContext
+
 
 
 
@@ -49,8 +61,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _loggedOut = MutableStateFlow(false)
     val loggedOut: StateFlow<Boolean> = _loggedOut
 
-
-
     init {
         // 启动时尝试自动加载
         val savedToken = prefs.getString("access_token", null)
@@ -60,9 +70,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val user = ApiClient.authService.getProfile("Bearer $savedToken")
                     _profile.value = user
-                    println("✅ 自动登录成功：${user.email}")
+                    Log.d("调试", "✅ 自动登录成功：${user.email}")
+
+                    // ✅ 自动登录成功后，也同步一次学习计划
+                    syncPlans()
+
                 } catch (e: Exception) {
-                    println("❌ 自动登录失败：${e.message}")
+                    Log.e("调试", "❌ 自动登录失败：${e.message}")
+                    // 如果 token 无效，也应该登出
+                    logout()
                 }
             }
         }
@@ -83,6 +99,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _profile.value = profile
                 Log.d("调试", "✅ 成功获取用户信息 ${profile.email}")
 
+                // ✅ 登录成功后，立即同步学习计划
+                syncPlans()
+
                 // ✅ 添加：启动10分钟一次的session校验
                 startSessionCheckLoop()
 
@@ -91,6 +110,26 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    // ✅ 新增：从服务器同步学习计划的函数
+    private suspend fun syncPlans() {
+        val currentToken = _token.value ?: return
+        try {
+            Log.d("调试", "🔄 开始从服务器同步学习计划...")
+            val plansFromServer = ApiClient.authService.getPlans("Bearer $currentToken")
+            Log.d("调试", "✅ 从服务器获取到 ${plansFromServer.size} 个学习计划")
+
+            // 使用 IO 调度器执行文件操作
+            viewModelScope.launch(Dispatchers.IO) {
+                FileHelper.overwriteLocalPlansFromServer(context, plansFromServer)
+            }
+
+        } catch (e: Exception) {
+            Log.e("调试", "❌ 同步学习计划失败: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
 
     fun logout() {
         _token.value = null
@@ -131,6 +170,71 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ✅ 新增：创建新计划并上传
+    fun createNewPlan(planName: String, category: String, selectedPlan: String, dailyCount: Int) {
+        viewModelScope.launch {
+            val currentToken = "Bearer ${_token.value}"
+            try {
+                // 1. 上传到服务器
+                val request = PlanCreateRequest(planName, category, selectedPlan, dailyCount)
+                val serverResponse = ApiClient.authService.createPlan(currentToken, request)
+                Log.d("调试", "✅ 计划 '${planName}' 已成功上传到服务器, ID: ${serverResponse.id}")
+
+                // 2. 更新本地文件
+                val newPlanInfo = PlanInfo(
+                    serverId = serverResponse.id,
+                    planName = serverResponse.planName,
+                    category = serverResponse.category,
+                    selectedPlan = serverResponse.selectedPlan,
+                    dailyCount = serverResponse.dailyCount
+                )
+                withContext(Dispatchers.IO) {
+                    FileHelper.addPlanToCurrentList(context, newPlanInfo)
+                }
+
+            } catch (e: Exception) {
+                Log.e("调试", "❌ 创建新计划失败: ${e.message}")
+                Toast.makeText(context, "创建失败: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    // ✅ 新增：删除计划并同步
+    fun deletePlanOnServer(planInfo: PlanInfo) {
+        val planId = planInfo.serverId ?: return
+        viewModelScope.launch {
+            val currentToken = "Bearer ${_token.value}"
+            try {
+                // 1. 从服务器删除
+                ApiClient.authService.deletePlan(currentToken, planId)
+                Log.d("调试", "✅ 计划 '${planInfo.planName}' 已从服务器删除")
+
+                // 2. 从本地删除
+                withContext(Dispatchers.IO) {
+                    FileHelper.deletePlan(context, planInfo.planName)
+                }
+            } catch (e: Exception) {
+                Log.e("调试", "❌ 删除计划失败: ${e.message}")
+            }
+        }
+    }
+
+    // ✅ 新增：上传每日单词列表
+    fun uploadDailyWords(planId: Int, words: List<String>) {
+        if (words.isEmpty()) return
+        viewModelScope.launch {
+            val currentToken = "Bearer ${_token.value}"
+            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val dailyWords = DailyWords(wordDate = dateStr, words = words)
+            try {
+                ApiClient.authService.addDailyWords(currentToken, planId, dailyWords)
+                Log.d("调试", "✅ 每日单词列表已上传, Plan ID: $planId, Date: $dateStr")
+            } catch (e: Exception) {
+                Log.e("调试", "❌ 上传每日单词失败: ${e.message}")
+            }
+        }
+    }
+
     fun startSessionCheckLoop() {
         viewModelScope.launch {
             while (true) {
@@ -166,4 +270,3 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _loggedOut.value = false
     }
 }
-

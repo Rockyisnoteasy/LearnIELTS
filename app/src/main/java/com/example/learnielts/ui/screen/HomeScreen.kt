@@ -20,6 +20,8 @@ import com.example.learnielts.ui.component.DictionarySearchBar
 import com.example.learnielts.viewmodel.DictionaryViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.learnielts.viewmodel.AuthViewModel
 
 
 @Composable
@@ -38,6 +40,7 @@ fun HomeScreen(
 
     val allPlans = remember { FileHelper.loadAllPlans(context) }
     val scope = rememberCoroutineScope()
+    val authViewModel: AuthViewModel = viewModel()
 
 
     Column(
@@ -87,18 +90,26 @@ fun HomeScreen(
                     onStartClicked = {
                         scope.launch {
                             Log.d("调试", "🚀 点击开始背单词：${plan.planName}")
-                            FileHelper.generateTodayWordListFromPlan(
+
+                            // 1. ✅ 生成今日单词
+                            val newWords = FileHelper.generateTodayWordListFromPlan(
                                 context,
                                 plan.category,
                                 plan.selectedPlan,
                                 plan.planName,
                                 plan.dailyCount
                             )
-                            Log.d("调试", "📦 单词生成完毕")
+                            Log.d("调试", "📦 单词生成完毕，共 ${newWords.size} 个新词")
+
+                            // 2. ✅ 上传新生成的单词
+                            plan.serverId?.let { serverId ->
+                                authViewModel.uploadDailyWords(serverId, newWords)
+                            }
+
+                            // 3. ✅ UI 跳转
                             val updatedTodayWords = FileHelper.getWordsForDate(
                                 context, today, plan.planName
                             )
-                            Log.d("调试", "📋 今日词数 = ${updatedTodayWords.size}")
                             onStartClicked(updatedTodayWords)
                         }
                     },

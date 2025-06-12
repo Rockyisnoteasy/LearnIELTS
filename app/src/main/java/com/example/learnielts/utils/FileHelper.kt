@@ -3,13 +3,14 @@ package com.example.learnielts.utils
 
 import android.content.Context
 import android.util.Log
+import com.example.learnielts.data.model.PlanResponse
 import org.json.JSONArray
 import java.io.File
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.example.learnielts.utils.PlanInfo
+import com.google.gson.Gson
 import com.example.learnielts.data.room.PlanWordDao
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,69 @@ import kotlinx.coroutines.withContext
 
 
 object FileHelper {
+
+    // ✅ 新增：根据从服务器获取的数据，强制覆盖本地所有学习计划
+    fun overwriteLocalPlansFromServer(context: Context, plansFromServer: List<PlanResponse>) {
+        Log.d("调试", "🗃️ 开始执行本地文件覆盖操作...")
+        val plansDir = context.getExternalFilesDir(null) ?: return
+        val currentPlanFile = File(plansDir, "current_plan.json")
+        val scheduleDir = File(plansDir, "word_schedule")
+
+        // 1. 清空本地旧数据
+        try {
+            if (currentPlanFile.exists()) currentPlanFile.delete()
+            if (scheduleDir.exists()) scheduleDir.deleteRecursively()
+            Log.d("调试", "🗑️ 已清空本地旧的学习计划文件。")
+        } catch (e: Exception) {
+            Log.e("调试", "❌ 清空本地文件时出错: ${e.message}")
+        }
+
+        if (plansFromServer.isEmpty()) {
+            Log.d("调试", "服务器上没有学习计划，操作结束。")
+            return
+        }
+
+        // 2. 重建 word_schedule 目录
+        scheduleDir.mkdirs()
+
+        // 3. 重建 current_plan.json
+        val localPlanInfos = plansFromServer.map { serverPlan ->
+            PlanInfo(
+                serverId = serverPlan.id,
+                planName = serverPlan.planName,
+                category = serverPlan.category,
+                selectedPlan = serverPlan.selectedPlan,
+                dailyCount = serverPlan.dailyCount
+            )
+        }
+        try {
+            val gson = Gson()
+            currentPlanFile.writeText(gson.toJson(localPlanInfos))
+            Log.d("调试", "✅ 已根据服务器数据重建 current_plan.json。")
+        } catch (e: Exception) {
+            Log.e("调试", "❌ 写入 current_plan.json 时出错: ${e.message}")
+        }
+
+
+        // 4. 重建每日单词文件
+        plansFromServer.forEach { serverPlan ->
+            val planSpecificDir = File(scheduleDir, serverPlan.planName)
+            planSpecificDir.mkdirs()
+
+            serverPlan.dailyWords.forEach { dailyWord ->
+                try {
+                    val dailyFile = File(planSpecificDir, "${dailyWord.wordDate}.json")
+                    val jsonArray = JSONArray(dailyWord.words)
+                    dailyFile.writeText(jsonArray.toString(2))
+                } catch (e: Exception) {
+                    Log.e("调试", "❌ 写入每日单词文件 ${dailyWord.wordDate}.json 时出错: ${e.message}")
+                }
+            }
+        }
+        Log.d("调试", "✅ 已根据服务器数据重建所有每日单词文件。")
+        Log.d("调试", "🎉 本地文件同步完成！")
+    }
+
 
     fun getWordsForDate(context: Context, dateStr: String): List<String> {
         return try {
@@ -87,14 +151,19 @@ object FileHelper {
         selectedPlan: String, // 不带 .db 后缀的原始文件名
         planName: String,
         dailyCount: Int
-    ) {
+    ): List<String> { // ✅ 返回类型变为 List<String>
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         val targetDir = File(context.getExternalFilesDir("word_schedule"), planName)
         val targetFile = File(targetDir, "$dateStr.json")
 
         if (targetFile.exists()) {
             Log.d("调试", "⏩ [$planName] 今日词表已存在，跳过生成")
-            return
+            // ✅ 如果已存在，可以读取并返回内容，或返回空列表表示未新生成
+            val existingWords = try {
+                val json = JSONArray(targetFile.readText())
+                List(json.length()) { json.getString(it) }
+            } catch (e: Exception) { emptyList() }
+            return existingWords
         }
 
         try {
@@ -112,18 +181,14 @@ object FileHelper {
 
             Log.d("调试", "📖 已学单词读取完成，总数=${learned.size}")
 
-            // ✅ 在打开数据库前，确保文件已复制
-            withContext(Dispatchers.IO) { // 确保文件复制也在IO线程
+            withContext(Dispatchers.IO) {
                 copyOrUpdatePlanDb(context, category, selectedPlan)
             }
 
-
-            // 打开数据库
             val dbName = "$selectedPlan.db"
             val db = com.example.learnielts.data.room.PlanDatabase.getInstance(context, dbName)
             val dao = db.planWordDao()
-            Log.d("调试", "📘 打开词表数据库成功：$dbName")
-            val newWords = withContext(Dispatchers.IO) { // 确保 Room 操作在IO线程执行
+            val newWords = withContext(Dispatchers.IO) {
                 dao.getUnlearnedWords(learned.toList(), dailyCount)
             }
             Log.d("调试", "✅ 成功获取未学单词 ${newWords.size} 个")
@@ -135,9 +200,11 @@ object FileHelper {
             } else {
                 Log.w("调试", "⚠️ [$planName] 没有剩余可学习的单词")
             }
+            return newWords // ✅ 返回新生成的单词列表
 
         } catch (e: Exception) {
             Log.e("调试", "❌ [$planName] 生成今日词表出错：${e.message}")
+            return emptyList() // ✅ 出错时返回空列表
         }
     }
 
@@ -160,17 +227,11 @@ object FileHelper {
         // 加载已有计划
         if (file.exists()) {
             try {
-                val arr = JSONArray(file.readText())
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val plan = PlanInfo(
-                        obj.getString("planName"),
-                        obj.getString("category"),
-                        obj.getString("selectedPlan"),
-                        obj.getInt("dailyCount")
-                    )
-                    plans.add(plan)
-                }
+                // ✅ 使用 Gson 解析
+                val gson = Gson()
+                val planListType = com.google.gson.reflect.TypeToken.getParameterized(List::class.java, PlanInfo::class.java).type
+                val existingPlans: List<PlanInfo> = gson.fromJson(file.readText(), planListType)
+                plans.addAll(existingPlans)
             } catch (e: Exception) {
                 Log.e("调试", "❌ 读取 current_plan.json 出错：${e.message}")
             }
@@ -181,18 +242,8 @@ object FileHelper {
         plans.add(newPlan)
 
         // 写回文件
-        val newArr = JSONArray()
-        for (p in plans) {
-            val obj = JSONObject().apply {
-                put("planName", p.planName)
-                put("category", p.category)
-                put("selectedPlan", p.selectedPlan)
-                put("dailyCount", p.dailyCount)
-            }
-            newArr.put(obj)
-        }
-
-        file.writeText(newArr.toString(2))
+        val gson = Gson()
+        file.writeText(gson.toJson(plans))
         Log.d("调试", "✅ 新计划已添加到 current_plan.json：${newPlan.planName}")
     }
 
@@ -201,16 +252,9 @@ object FileHelper {
         if (!file.exists()) return emptyList()
 
         return try {
-            val arr = JSONArray(file.readText())
-            List(arr.length()) { i ->
-                val obj = arr.getJSONObject(i)
-                PlanInfo(
-                    obj.getString("planName"),
-                    obj.getString("category"),
-                    obj.getString("selectedPlan"),
-                    obj.getInt("dailyCount")
-                )
-            }
+            val gson = Gson()
+            val planListType = com.google.gson.reflect.TypeToken.getParameterized(List::class.java, PlanInfo::class.java).type
+            gson.fromJson(file.readText(), planListType)
         } catch (e: Exception) {
             Log.e("调试", "❌ 解析 current_plan.json 出错：${e.message}")
             emptyList()
@@ -242,16 +286,15 @@ object FileHelper {
         if (!planFile.exists()) return
 
         try {
-            val arr = JSONArray(planFile.readText())
-            val newArr = JSONArray()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                if (obj.getString("planName") != planName) {
-                    newArr.put(obj)
-                }
+            val allPlans = loadAllPlans(context).toMutableList()
+            val beforeSize = allPlans.size
+            allPlans.removeAll { it.planName == planName }
+
+            if (allPlans.size < beforeSize) {
+                val gson = Gson()
+                planFile.writeText(gson.toJson(allPlans))
+                Log.d("调试", "✅ 删除计划成功：$planName")
             }
-            planFile.writeText(newArr.toString(2))
-            Log.d("调试", "✅ 删除计划成功：$planName")
         } catch (e: Exception) {
             Log.e("调试", "❌ 删除失败：${e.message}")
         }

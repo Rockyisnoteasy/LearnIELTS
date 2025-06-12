@@ -20,6 +20,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.learnielts.utils.FileHelper
 import com.example.learnielts.utils.PlanInfo
 import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.learnielts.viewmodel.AuthViewModel
 
 
 @Composable
@@ -46,6 +48,7 @@ fun LearningPlanScreen(
     var inputText by remember { mutableStateOf("") }
     var selectedPlanName by remember { mutableStateOf<String?>(null) } // 这里的 selectedPlanName 是不带 .db 后缀的原始文件名
     var showNameConflictDialog by remember { mutableStateOf(false) }
+    val authViewModel: AuthViewModel = viewModel()
 
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -145,38 +148,19 @@ fun LearningPlanScreen(
 
                         if (planName.isNotBlank() && count != null && count > 0) {
                             val existingPlans = FileHelper.loadAllPlans(context)
-                            val nameExists = existingPlans.any { it.planName.equals(planName, ignoreCase = true) }
-
-                            if (nameExists) {
+                            if (existingPlans.any { it.planName.equals(planName, ignoreCase = true) }) {
                                 showNameConflictDialog = true
                             } else {
-                                Log.d("调试", "✅ 新建学习计划：$planName")
-
-                                // ✅ 在这里调用 FileHelper.copyOrUpdatePlanDb
-                                // selectedCategory 是父文件夹名 (例如 "四六级")
-                                // selectedPlanName 是不带 .db 的文件名 (例如 "四级深度记忆核心词1905词")
-                                FileHelper.copyOrUpdatePlanDb(context, selectedCategory!!, selectedPlanName!!)
-
-                                FileHelper.addPlanToCurrentList(
-                                    context,
-                                    PlanInfo(
-                                        planName = planName,
-                                        category = selectedCategory!!,
-                                        selectedPlan = selectedPlanName!!, // 传递不带 .db 的文件名
-                                        dailyCount = count
-                                    )
+                                // ✅ 调用 ViewModel 的新函数来统一处理创建和上传
+                                authViewModel.createNewPlan(
+                                    planName = planName,
+                                    category = selectedCategory!!,
+                                    selectedPlan = selectedPlanName!!,
+                                    dailyCount = count
                                 )
-
-                                scope.launch {
-                                    FileHelper.generateTodayWordListFromPlan(
-                                        context,
-                                        selectedCategory!!,
-                                        selectedPlanName!!, // 传递不带 .db 的文件名
-                                        planName,
-                                        count
-                                    )
-                                    showDialog = false
-                                }
+                                showDialog = false // 关闭对话框
+                                // 可选：成功后可以调用 onBack() 返回首页
+                                // onBack()
                             }
                         }
                     }) {

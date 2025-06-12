@@ -1,5 +1,6 @@
 package com.example.learnielts.utils
 
+import com.google.gson.annotations.SerializedName
 /**
  * 学习计划信息的数据结构，用于表示一个完整的学习计划配置。
  *
@@ -9,6 +10,8 @@ package com.example.learnielts.utils
  * @property dailyCount 每天学习的单词数
  */
 data class PlanInfo(
+    // serverId 字段用于存储服务器返回的ID
+    @SerializedName("id") var serverId: Int? = null,
     val planName: String,
     val category: String,
     val selectedPlan: String,

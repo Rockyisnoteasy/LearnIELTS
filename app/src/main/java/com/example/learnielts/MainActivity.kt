@@ -574,6 +574,9 @@ fun AppContent(
 
                     DrawerLevel.PLAN_MANAGE_ACTIONS -> {
                         val context = LocalContext.current
+                        // ✅ 修正：在使用 planToDelete 之前，必须先定义它
+                        val allPlans = remember { FileHelper.loadAllPlans(context) }
+                        val planToDelete = allPlans.find { it.planName == selectedPlanToManage }
 
                         // 返回按钮
                         Row(
@@ -591,11 +594,13 @@ fun AppContent(
                         Divider()
 
                         DrawerText("🗑 删除该计划") {
-                            selectedPlanToManage?.let {
-                                FileHelper.deletePlan(context, it)
+                            // 现在 planToDelete 已经被正确定义
+                            planToDelete?.let {
+                                authViewModel.deletePlanOnServer(it)
                             }
                             selectedPlanToManage = null
                             drawerLevel = DrawerLevel.MAIN_MENU
+                            scope.launch { drawerState.close() }
                         }
                     }
 
