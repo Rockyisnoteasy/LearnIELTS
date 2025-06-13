@@ -32,14 +32,23 @@ fun WordToMeaningSelect(
     val chinese = ChineseDefinitionExtractor.simplify(fullDef) ?: "（无释义）"
 
     LaunchedEffect(currentIndex) {
+        // ✅ --- 修正后的逻辑 ---
         val simplifiedCorrect = ChineseDefinitionExtractor.simplify(fullDef) ?: "（无释义）"
         val distractorsRaw = viewModel.getRandomDistractorDefinitions(word)
 
-        val distractors = distractorsRaw.mapNotNull {
-            ChineseDefinitionExtractor.simplify(it)
-        }.distinct().filter { it != simplifiedCorrect }.take(3)
+        // 1. 简化所有干扰项
+        // 2. 过滤掉与正确答案（简化后）相同的项
+        // 3. 去重
+        // 4. 最后取3个
+        val distractors = distractorsRaw
+            .mapNotNull { ChineseDefinitionExtractor.simplify(it) }
+            .filter { it != simplifiedCorrect }
+            .distinct()
+            .take(3)
 
+        // 无论干扰项有多少个，都将正确答案添加进去，然后洗牌
         candidates = (distractors + simplifiedCorrect).shuffled()
+        // ✅ --- 修正结束 ---
     }
 
 

@@ -33,7 +33,8 @@ fun FlipCardScreen(
     context: Context,
     wordList: List<String>,
     viewModel: DictionaryViewModel,
-    onExit: () -> Unit
+    onSessionComplete: () -> Unit,
+    onBackPress: () -> Unit
 ) {
     var currentIndex by remember { mutableStateOf(0) }
     var expanded by remember { mutableStateOf(false) }
@@ -43,7 +44,12 @@ fun FlipCardScreen(
     val flipController = rememberFlipController()
     val scope = rememberCoroutineScope()
 
-    val word = wordList.getOrNull(currentIndex) ?: return onExit()
+    // 只保留这一个 BackHandler
+    BackHandler {
+        onBackPress()
+    }
+
+    val word = wordList.getOrNull(currentIndex) ?: return onSessionComplete()
     val fullDef = viewModel.getDefinition(word) ?: "（无释义）"
     val shortDef = remember(word) {
         val start = fullDef.indexOf("中文释义：")
@@ -51,18 +57,6 @@ fun FlipCardScreen(
         if (start != -1 && end != -1 && end > start) {
             fullDef.substring(start + 5, end).trim()
         } else fullDef
-    }
-
-    BackHandler {
-        onExit()
-    }
-
-
-    fun moveToNextWord() {
-        currentIndex++
-        if (currentIndex >= wordList.size) {
-            onExit()
-        }
     }
 
     Column(
@@ -208,21 +202,17 @@ fun FlipCardScreen(
                         expanded = false
 
                         scope.launch {
-                            // 如果当前是背面，先翻回正面（但不等待动画完成）
                             if (!isFront) {
                                 flipController.flip()
                                 isFront = true
-                                // 不等待翻转动画完成，立即切换到下一个单词
-                                delay(500) // 只是给一个很小的延迟确保状态更新
+                                delay(500)
                             }
 
-                            // 切换到下一个单词
                             currentIndex++
                             if (currentIndex >= wordList.size) {
-                                onExit()
+                                onSessionComplete()
                             }
 
-                            // 确保下一个单词显示正面
                             isFront = true
                             isFlipping = false
                         }

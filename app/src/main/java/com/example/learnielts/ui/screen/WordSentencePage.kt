@@ -19,17 +19,23 @@ import androidx.compose.foundation.rememberScrollState
 import com.example.learnielts.ui.screen.common.DateWordPickerScreen
 import com.example.learnielts.ui.screen.common.WordPlanSource
 
-
 @Composable
 fun WordSentencePage(
     context: Context,
     viewModel: DictionaryViewModel,
     planSource: WordPlanSource = WordPlanSource.LEARNED_WORDS,
     selectedPlanName: String? = null,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    // ✅ 新增参数：允许外部直接传入单词列表
+    initialWords: List<String>? = null
 ) {
-    var stage by remember { mutableStateOf("picker") }
-    var selectedWords by remember { mutableStateOf<List<String>>(emptyList()) }
+    // ✅ 修正：根据 initialWords 是否为空，决定起始 stage
+    var stage by remember {
+        mutableStateOf(if (initialWords.isNullOrEmpty()) "picker" else "select_word")
+    }
+    // ✅ 修正：如果 initialWords 不为空，直接用它初始化 selectedWords
+    var selectedWords by remember { mutableStateOf(initialWords ?: emptyList()) }
+
     var selectedWord by remember { mutableStateOf("") }
     var sentenceInput by remember { mutableStateOf("") }
     var aiFeedback by remember { mutableStateOf<String?>(null) }
@@ -48,7 +54,6 @@ fun WordSentencePage(
             },
             onBack = onExit
         )
-
 
         "select_word" -> Column(modifier = Modifier
             .fillMaxSize()
@@ -72,8 +77,15 @@ fun WordSentencePage(
             }
 
             Spacer(Modifier.height(12.dp))
-            Button(onClick = { stage = "picker" }) {
-                Text("← 重新选择日期")
+            // 如果是从测试序列进入，不显示“重新选择日期”按钮
+            if (initialWords.isNullOrEmpty()) {
+                Button(onClick = { stage = "picker" }) {
+                    Text("← 重新选择日期")
+                }
+            } else {
+                Button(onClick = onExit) {
+                    Text("退出")
+                }
             }
         }
 

@@ -210,11 +210,32 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     selectedPlan = serverResponse.selectedPlan,
                     dailyCount = serverResponse.dailyCount
                 )
+                // ✅ --- 修改开始 ---
+                // 使用 withContext 确保文件操作在IO线程完成
                 withContext(Dispatchers.IO) {
+                    // a. 将新计划信息保存到本地 current_plan.json
                     FileHelper.addPlanToCurrentList(context, newPlanInfo)
+
+                    // b. 立刻为这个新计划生成今天的单词列表
+                    Log.d("调试", "为新计划 '${planName}' 生成今日词表...")
+                    val newWords = FileHelper.generateTodayWordListFromPlan(
+                        context,
+                        newPlanInfo.category,
+                        newPlanInfo.selectedPlan,
+                        newPlanInfo.planName,
+                        newPlanInfo.dailyCount
+                    )
+                    Log.d("调试", "为新计划生成了 ${newWords.size} 个单词。")
+
+                    // c. 如果生成了新单词，则调用后台上传（此函数内部会启动新协程，不会阻塞）
+                    if (newWords.isNotEmpty()) {
+                        uploadDailyWords(serverResponse.id, newWords)
+                    }
                 }
-                // 云端学习计划下载成功后，立即加载到状态中以刷新UI
+
+                // 3. 刷新UI，加载包含新计划的列表
                 loadPlans()
+                // ✅ --- 修改结束 ---
 
             } catch (e: Exception) {
                 Log.e("调试", "❌ 创建新计划失败: ${e.message}")

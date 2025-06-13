@@ -29,6 +29,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.learnielts.viewmodel.AuthViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import java.util.UUID
 
 
 @Composable
@@ -47,18 +51,48 @@ fun HomeScreen(
 
     val scope = rememberCoroutineScope()
     val authViewModel: AuthViewModel = viewModel()
-
-    // 从 ViewModel 的 StateFlow 中收集计划列表，使其可被观察
     val allPlans by authViewModel.plans.collectAsState()
-
-    // ✅ 新增：用于控制计划列表展开/折叠的状态
     var isExpanded by remember { mutableStateOf(false) }
+
+    // ✅ 修正：使用一个稳定的状态来触发UI刷新
+    var refreshKey by remember { mutableStateOf(UUID.randomUUID()) }
 
     // 确保在 HomeScreen 首次加载时，能从文件初始化一次状态
     LaunchedEffect(Unit) {
         authViewModel.loadPlans()
     }
 
+    // 在计划列表加载后，主动检查并生成当天的单词列表
+    LaunchedEffect(allPlans) {
+        if (allPlans.isNotEmpty()) {
+            var needsRefresh = false
+            coroutineScope {
+                allPlans.forEach { plan ->
+                    val todayFile = File(context.getExternalFilesDir("word_schedule/${plan.planName}"), "$today.json")
+                    if (!todayFile.exists()) {
+                        needsRefresh = true
+                        launch(Dispatchers.IO) {
+                            Log.d("调试", "【主动检查】为 ${plan.planName} 生成今日词表...")
+                            val newWords = FileHelper.generateTodayWordListFromPlan(
+                                context, plan.category, plan.selectedPlan, plan.planName, plan.dailyCount
+                            )
+                            plan.serverId?.let { serverId ->
+                                if (newWords.isNotEmpty()) {
+                                    authViewModel.uploadDailyWords(serverId, newWords)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (needsRefresh) {
+                delay(1500) // 等待文件IO
+                refreshKey = UUID.randomUUID() // 更新Key以触发UI刷新
+                Log.d("调试", "【主动检查】文件生成完毕，刷新UI")
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -68,31 +102,50 @@ fun HomeScreen(
     ) {
 
         DictionarySearchBar(viewModel)
-
         Spacer(modifier = Modifier.height(16.dp))
 
         if (allPlans.isEmpty()) {
             Text("尚未创建任何学习计划", style = MaterialTheme.typography.bodyLarge)
         } else {
-            // ✅ 改进的逻辑：总是显示第一个计划
-            val firstPlan = allPlans.first()
-            DisplayPlanCard(context, firstPlan, viewModel, onStartClicked, onEnterLearningPlan)
+            // 决定要显示的计划列表（折叠或展开）
+            val plansToShow = if (isExpanded || allPlans.size <= 1) allPlans else listOf(allPlans.first())
 
-            // ✅ 新增：如果计划多于一个，用 AnimatedVisibility 实现带动画的展开和折叠
-            if (allPlans.size > 1) {
-                AnimatedVisibility(visible = isExpanded) {
-                    Column {
-                        // 从第二个计划开始显示
-                        allPlans.drop(1).forEach { plan ->
-                            Spacer(modifier = Modifier.height(16.dp))
-                            DisplayPlanCard(context, plan, viewModel, onStartClicked, onEnterLearningPlan)
-                        }
-                    }
+            plansToShow.forEach { plan ->
+                // ✅ 核心修正：在这里计算所有需要显示的值，并用 remember 包裹
+                // 当 refreshKey 变化时，这些值会全部重新计算
+                val newCount = remember(plan, refreshKey) {
+                    FileHelper.getWordsForDate(context, today, plan.planName).size
+                }
+                val reviewCount = remember(plan, refreshKey) {
+                    FileHelper.getWordsForDate(context, yesterday, plan.planName).size
+                }
+                val progress = remember(plan, refreshKey) {
+                    FileHelper.calculateProgress(
+                        context, plan.planName, plan.category, plan.selectedPlan
+                    )
+                }
+                val remainingDays = if (progress.second > 0 && plan.dailyCount > 0) {
+                    (progress.second - progress.first + plan.dailyCount - 1).coerceAtLeast(0) / plan.dailyCount
+                } else {
+                    0
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                // 将计算好的值传递给卡片组件
+                DisplayPlanCard(
+                    context = context,
+                    plan = plan,
+                    newCount = newCount,
+                    reviewCount = reviewCount,
+                    progress = progress,
+                    remainingDays = remainingDays,
+                    onStartClicked = onStartClicked,
+                    onEnterLearningPlan = onEnterLearningPlan
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-                // ✅ 新增：展开/折叠按钮
+            // 折叠/展开按钮
+            if (allPlans.size > 1) {
                 TextButton(
                     onClick = { isExpanded = !isExpanded },
                     modifier = Modifier.fillMaxWidth()
@@ -109,13 +162,16 @@ fun HomeScreen(
 }
 
 /**
- * ✅ 新增：将计划卡片的显示逻辑提取到一个独立的 Composable 函数中，方便复用
+ * ✅ 修正：将卡片显示逻辑提取，并只接收计算好的数据，不再自己计算
  */
 @Composable
 private fun DisplayPlanCard(
     context: Context,
     plan: com.example.learnielts.utils.PlanInfo,
-    viewModel: DictionaryViewModel,
+    newCount: Int,
+    reviewCount: Int,
+    progress: Pair<Int, Int>,
+    remainingDays: Int,
     onStartClicked: (List<String>) -> Unit,
     onEnterLearningPlan: () -> Unit
 ) {
@@ -123,55 +179,29 @@ private fun DisplayPlanCard(
     val scope = rememberCoroutineScope()
     val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
-    val progress = FileHelper.calculateProgress(
-        context = context,
-        planName = plan.planName,
-        category = plan.category,
-        selectedPlan = plan.selectedPlan
-    )
-    Log.d("调试", "📈 显示计划：${plan.planName}，进度 = ${progress.first} / ${progress.second}")
-
-    val remainingDays = if (progress.second > 0 && plan.dailyCount > 0) {
-        (progress.second - progress.first + plan.dailyCount - 1).coerceAtLeast(0) / plan.dailyCount
-    } else {
-        0
-    }
-
     DailyWordSummaryCard(
         planName = plan.planName,
-        newCount = FileHelper.getWordsForDate(context, today, plan.planName).size,
-        reviewCount = FileHelper.getWordsForDate(
-            context,
-            remember {
-                Calendar.getInstance().apply { add(Calendar.DATE, -1) }.let {
-                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(it.time)
-                }
-            },
-            plan.planName
-        ).size,
+        newCount = newCount,
+        reviewCount = reviewCount,
         totalProgress = progress,
         remainingDays = remainingDays,
         onStartClicked = {
             scope.launch {
-                Log.d("调试", "🚀 点击开始背单词：${plan.planName}")
-
-                val newWords = withContext(Dispatchers.IO) {
-                    FileHelper.generateTodayWordListFromPlan(
-                        context,
-                        plan.category,
-                        plan.selectedPlan,
-                        plan.planName,
-                        plan.dailyCount
-                    )
+                // 点击“开始背单词”的逻辑保持不变，它是一个用户主动行为
+                val wordsToLearn = withContext(Dispatchers.IO) {
+                    FileHelper.getWordsForDate(context, today, plan.planName).ifEmpty {
+                        FileHelper.generateTodayWordListFromPlan(
+                            context, plan.category, plan.selectedPlan, plan.planName, plan.dailyCount
+                        ).also { newWords ->
+                            if (newWords.isNotEmpty()) {
+                                plan.serverId?.let { serverId ->
+                                    authViewModel.uploadDailyWords(serverId, newWords)
+                                }
+                            }
+                        }
+                    }
                 }
-                Log.d("调试", "📦 单词生成完毕，共 ${newWords.size} 个新词")
-
-                plan.serverId?.let { serverId ->
-                    authViewModel.uploadDailyWords(serverId, newWords)
-                }
-
-                val updatedTodayWords = FileHelper.getWordsForDate(context, today, plan.planName)
-                onStartClicked(updatedTodayWords)
+                onStartClicked(wordsToLearn)
             }
         },
         onEditClicked = onEnterLearningPlan
