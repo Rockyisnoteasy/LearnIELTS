@@ -71,6 +71,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import com.example.learnielts.utils.ChineseDefinitionExtractor
+import com.example.learnielts.ui.screen.WordMeaningMatchScreen
+import com.example.learnielts.ui.screen.WordMeaningMatchSetup
 
 
 enum class DrawerLevel {
@@ -87,7 +89,9 @@ enum class DrawerLevel {
     PLAN_MEANING_SELECT,
     PLAN_SELF_MEANING_SELECT,
     PLAN_WORD_MEANING_SELECT,
-    PLAN_SELF_WORD_MEANING_SELECT
+    PLAN_SELF_WORD_MEANING_SELECT,
+    PLAN_WORD_MATCH,
+    PLAN_SELF_WORD_MATCH
 }
 
 class MainActivity : ComponentActivity() {
@@ -213,7 +217,8 @@ fun AppContent(
     var meaningSelectScreenState by remember { mutableStateOf("setup") }
     var showWordToMeaningSelect by remember { mutableStateOf(false) }
     var wordToMeaningSelectScreenState by remember { mutableStateOf("setup") }
-    // ✅ --- 新增的状态变量 ---
+    var showWordMeaningMatch by remember { mutableStateOf(false) }
+    var wordMeaningMatchState by remember { mutableStateOf("setup") }
     // 控制“是否开始测试”的第一个对话框
     var showStartTestDialog by remember { mutableStateOf(false) }
     // 控制“是否开始下一轮测试”的对话框
@@ -228,6 +233,7 @@ fun AppContent(
     val testSequence = remember {
         listOf(
             "word_to_meaning_select", // 以词选意
+            "word_meaning_match",     // 词意匹配
             "meaning_to_word_select", // 以意选词
             "chinese_select",         // 选择填词
             "chinese_spell",          // 拼写填词
@@ -239,54 +245,34 @@ fun AppContent(
     val snackbarHostState = remember { SnackbarHostState() }
     // ✅ --- 核心修正点 1：将所有辅助函数和逻辑都定义在 AppContent 内部 ---
 
-    // 辅助函数：启动一个具体的测试
-    fun startCurrentTest() {
-        if (currentTestIndex >= testSequence.size) return
-
-        val testType = testSequence[currentTestIndex]
-        val questions = when (testType) {
-            "word_to_meaning_select", "meaning_to_word_select", "chinese_spell", "chinese_select" -> {
-                wordsForCurrentSession.mapNotNull { word ->
-                    viewModel.getDefinition(word)?.let { def ->
-                        ChineseDefinitionExtractor.extract(def)?.let { chinese -> word to chinese }
-                    }
-                }.shuffled()
-            }
-            else -> emptyList()
-        }
-
-        testQuestions = questions
-        when (testType) {
-            "word_to_meaning_select" -> {
-                wordToMeaningSelectScreenState = "test"; showWordToMeaningSelect = true
-            }
-            "meaning_to_word_select" -> {
-                meaningSelectScreenState = "test"; showMeaningSelect = true
-            }
-            "chinese_select" -> {
-                chineseSelectScreenState = "test"; showChineseToEnglishSelect = true
-            }
-            "chinese_spell" -> {
-                chineseTestScreenState = "test"; showChineseToEnglish = true
-            }
-            "listening_test" -> {
-                listeningWordList = wordsForCurrentSession.shuffled(); listeningTestState = "test"; showListeningTest = true
-            }
-            "word_sentence" -> {
-                showWordSentencePage = true
-            }
-        }
-    }
-
     // 可复用的 lambda：处理当一个测试完成时的逻辑
     val onTestFinished: (List<Any>) -> Unit = {
         currentTestIndex++
         if (currentTestIndex >= testSequence.size) {
             isInTestSequence = false
+            // 增加重置逻辑，确保下次序列从头开始
+            currentTestIndex = 0
             scope.launch { snackbarHostState.showSnackbar("恭喜，所有测试已完成！") }
         } else {
             if (doNotRemindForSession) {
-                startCurrentTest()
+                // ✅ 修正调用方式，指向唯一的、正确的外部函数
+                startCurrentTest(
+                    testSequence = testSequence,
+                    currentTestIndex = currentTestIndex,
+                    words = wordsForCurrentSession,
+                    viewModel = viewModel
+                ) { screenName, questionsData ->
+                    testQuestions = questionsData
+                    when (screenName) {
+                        "word_to_meaning_select" -> { wordToMeaningSelectScreenState = "test"; showWordToMeaningSelect = true }
+                        "word_meaning_match" -> { wordMeaningMatchState = "test"; showWordMeaningMatch = true }
+                        "meaning_to_word_select" -> { meaningSelectScreenState = "test"; showMeaningSelect = true }
+                        "chinese_select" -> { chineseSelectScreenState = "test"; showChineseToEnglishSelect = true }
+                        "chinese_spell" -> { chineseTestScreenState = "test"; showChineseToEnglish = true }
+                        "listening_test" -> { listeningWordList = wordsForCurrentSession.shuffled(); listeningTestState = "test"; showListeningTest = true }
+                        "word_sentence" -> { showWordSentencePage = true }
+                    }
+                }
             } else {
                 showNextTestDialog = true
             }
@@ -334,6 +320,12 @@ fun AppContent(
                             drawerLevel = DrawerLevel.PLAN_WORD_MEANING_SELECT
                         }
 
+                        DrawerText("词意匹配") {
+                            learningPlanTarget = "word_match" // 定义一个新的 target
+                            selectedPlan = null // 重置，让用户在下一级菜单选择
+                            drawerLevel = DrawerLevel.PLAN_WORD_MATCH
+                        }
+
                         DrawerText("以意选词") {
                             drawerLevel = DrawerLevel.PLAN_MEANING_SELECT
                         }
@@ -355,6 +347,11 @@ fun AppContent(
                         }
                     }
 
+                    DrawerLevel.PLAN_SELF_WORD_MATCH -> {
+                        // 此处可以留空，或与 PLAN_WORD_MATCH 类似，但目前我们先确保编译通过
+                        // 为了简单，可以让它返回主菜单
+                        drawerLevel = DrawerLevel.MAIN_MENU
+                    }
 
                     DrawerLevel.MAIN_MENU -> {
                         DrawerText("功能菜单", modifier = Modifier.padding(16.dp))
@@ -452,6 +449,12 @@ fun AppContent(
                             learningPlanTarget = "word_meaning_select_self"
                             showWordToMeaningSelect = true
                             wordToMeaningSelectScreenState = "setup"
+                            scope.launch { drawerState.close() }
+                        }
+
+                        DrawerText("词意匹配") {
+                            showWordMeaningMatch = true
+                            wordMeaningMatchState = "setup"
                             scope.launch { drawerState.close() }
                         }
 
@@ -688,6 +691,34 @@ fun AppContent(
                         }
                     }
 
+                    DrawerLevel.PLAN_WORD_MATCH -> {
+                        val context = LocalContext.current
+                        val plans = remember { FileHelper.loadAllPlans(context) }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { drawerLevel = DrawerLevel.PLAN_MENU }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("选择计划（词意匹配）")
+                        }
+                        Divider()
+
+                        plans.forEach { plan ->
+                            DrawerText(plan.planName) {
+                                learningPlanTarget = "word_match"
+                                selectedPlan = plan.planName
+                                showWordMeaningMatch = true
+                                wordMeaningMatchState = "setup"
+                                scope.launch { drawerState.close() }
+                            }
+                        }
+                    }
+
                     DrawerLevel.PLAN_MEANING_SELECT -> {
                         val context = LocalContext.current
                         val plans = remember { FileHelper.loadAllPlans(context) }
@@ -849,15 +880,16 @@ fun AppContent(
                             "test" -> ChineseToEnglishSelect(
                                 questions = testQuestions,
                                 onFinish = { results ->
-                                    showChineseToEnglishSelect = false // 1. 关闭当前屏幕
                                     if (isInTestSequence) {
-                                        onTestFinished(results) // 2. 调用通用函数处理序列流转
+                                        showChineseToEnglishSelect = false
+                                        onTestFinished(results)
                                     } else {
-                                        // 3. 否则，走旧的独立测试逻辑
                                         testResults = results
                                         chineseSelectScreenState = "result"
+                                        showChineseToEnglishSelect = true
                                     }
-                                },
+                                }
+,
                                 onBack = {
                                     chineseSelectScreenState = "setup"
                                 }
@@ -892,13 +924,13 @@ fun AppContent(
                             "test" -> ChineseToEnglishTest(
                                 questions = testQuestions,
                                 onFinish = { results ->
-                                    showChineseToEnglish = false // 1. 关闭当前屏幕
                                     if (isInTestSequence) {
-                                        onTestFinished(results) // 2. 调用通用函数处理序列流转
+                                        showChineseToEnglish = false
+                                        onTestFinished(results)
                                     } else {
-                                        // 3. 否则，走旧的独立测试逻辑
                                         testResults = results
                                         chineseTestScreenState = "result"
+                                        showChineseToEnglish = true
                                     }
                                 },
                                 onBack = {
@@ -939,15 +971,16 @@ fun AppContent(
                                 words = listeningWordList,
                                 viewModel = viewModel,
                                 onFinish = { results ->
-                                    showListeningTest = false // 1. 关闭当前屏幕
                                     if (isInTestSequence) {
-                                        onTestFinished(results) // 2. 调用通用函数处理序列流转
+                                        showListeningTest = false
+                                        onTestFinished(results)
                                     } else {
-                                        // 3. 否则，走旧的独立测试逻辑
                                         listeningResults = results
                                         listeningTestState = "result"
+                                        showListeningTest = true
                                     }
-                                },
+                                }
+,
                                 onBack = {
                                     listeningTestState = "setup"
                                 }
@@ -1041,15 +1074,16 @@ fun AppContent(
                                 questions = testQuestions,
                                 viewModel = viewModel, // ✅ 传入
                                 onFinish = { results ->
-                                    showMeaningSelect = false // 1. 关闭当前屏幕
                                     if (isInTestSequence) {
-                                        onTestFinished(results) // 2. 调用通用函数处理序列流转
+                                        showMeaningSelect = false
+                                        onTestFinished(results)
                                     } else {
-                                        // 3. 否则，走旧的独立测试逻辑
                                         testResults = results
                                         meaningSelectScreenState = "result"
+                                        showMeaningSelect = true
                                     }
-                                },
+                                }
+,
                                 onBack = {
                                     meaningSelectScreenState = "setup"
                                 }
@@ -1068,7 +1102,7 @@ fun AppContent(
                     }
 
                     // 以词选意
-                    showWordToMeaningSelect -> {  // ✅ 插在这里
+                    showWordToMeaningSelect -> {
                         when (wordToMeaningSelectScreenState) {
                             "setup" -> WordToMeaningSelectSetup(
                                 context = LocalContext.current,
@@ -1087,15 +1121,16 @@ fun AppContent(
                                 questions = testQuestions,
                                 viewModel = viewModel,
                                 onFinish = { results ->
-                                    showWordToMeaningSelect = false // 1. 关闭当前屏幕
                                     if (isInTestSequence) {
-                                        onTestFinished(results) // 2. 调用通用函数处理序列流转
+                                        showWordToMeaningSelect = false
+                                        onTestFinished(results)
                                     } else {
-                                        // 3. 否则，走旧的独立测试逻辑
                                         testResults = results
                                         wordToMeaningSelectScreenState = "result"
+                                        showWordToMeaningSelect = true
                                     }
-                                },
+                                }
+,
                                 onBack = {
                                     wordToMeaningSelectScreenState = "setup"
                                 }
@@ -1107,6 +1142,46 @@ fun AppContent(
                                 onRetry = {
                                     testQuestions = testResults.shuffled().map { r -> r.word to r.chinese }
                                     wordToMeaningSelectScreenState = "test"
+                                }
+                            )
+                        }
+                    }
+
+                    // 词意匹配
+                    showWordMeaningMatch -> {
+                        when (wordMeaningMatchState) {
+                            "setup" -> WordMeaningMatchSetup(
+                                context = LocalContext.current,
+                                viewModel = viewModel,
+                                planSource = if (learningPlanTarget == "word_match") WordPlanSource.SCHEDULED_PLAN else WordPlanSource.LEARNED_WORDS,
+                                selectedPlanName = selectedPlan,
+                                onBack = { showWordMeaningMatch = false },
+                                onStartTest = {
+                                    testQuestions = it
+                                    wordMeaningMatchState = "test"
+                                }
+                            )
+                            "test" -> WordMeaningMatchScreen(
+                                initialSessionPairs = testQuestions,
+                                onFinish = { results ->
+                                    if (isInTestSequence) {
+                                        showWordMeaningMatch = false
+                                        onTestFinished(results)
+                                    } else {
+                                        testResults = results
+                                        wordMeaningMatchState = "result"
+                                        showWordMeaningMatch = true
+                                    }
+                                },
+                                onBack = { wordMeaningMatchState = "setup" }
+                            )
+                            "result" -> TestResultScreen(
+                                results = testResults, // 使用通用的测试结果
+                                onBack = { showWordMeaningMatch = false }, // 返回时关闭页面
+                                onRetry = {
+                                    // 重试逻辑：可以重新准备题目并回到测试状态
+                                    testQuestions = testResults.shuffled().map { r -> r.word to r.chinese }
+                                    wordMeaningMatchState = "test"
                                 }
                             )
                         }
@@ -1134,7 +1209,7 @@ fun AppContent(
             // ✅ --- 新增的对话框和 Snackbar ---
 
             // 1. “是否开始测试？” 对话框
-// 1. “是否开始测试？” 对话框
+
             if (showStartTestDialog) {
                 AlertDialog(
                     onDismissRequest = { showStartTestDialog = false },
@@ -1145,13 +1220,26 @@ fun AppContent(
                             showStartTestDialog = false
                             isInTestSequence = true
                             currentTestIndex = 0
-                            // ✅ 调用辅助函数，并处理所有测试类型的回调
-                            startCurrentTest(testSequence, 0, wordsForCurrentSession, viewModel) { screenName, questionsData ->
+
+                            // ✅ 核心修正：直接调用辅助函数，并在其回调中处理 UI 跳转
+                            startCurrentTest(
+                                testSequence = testSequence,
+                                currentTestIndex = 0,
+                                words = wordsForCurrentSession,
+                                viewModel = viewModel
+                            ) { screenName, questionsData ->
+                                // `questionsData` 是辅助函数准备好的数据
                                 testQuestions = questionsData
+
+                                // 根据 screenName 更新状态，显示对应的测试界面
                                 when (screenName) {
                                     "word_to_meaning_select" -> {
                                         wordToMeaningSelectScreenState = "test"
                                         showWordToMeaningSelect = true
+                                    }
+                                    "word_meaning_match" -> {
+                                        wordMeaningMatchState = "test"
+                                        showWordMeaningMatch = true
                                     }
                                     "meaning_to_word_select" -> {
                                         meaningSelectScreenState = "test"
@@ -1171,8 +1259,7 @@ fun AppContent(
                                         showListeningTest = true
                                     }
                                     "word_sentence" -> {
-                                        // 以词造句没有独立的测试界面，可以直接启动
-                                        // 这里可以先跳过或显示一个提示
+                                        showWordSentencePage = true
                                     }
                                 }
                             }
@@ -1229,6 +1316,10 @@ fun AppContent(
                                         meaningSelectScreenState = "test"
                                         showMeaningSelect = true
                                     }
+                                    "word_meaning_match" -> {
+                                        wordMeaningMatchState = "test"
+                                        showWordMeaningMatch = true
+                                    }
                                     "chinese_select" -> {
                                         chineseSelectScreenState = "test"
                                         showChineseToEnglishSelect = true
@@ -1280,7 +1371,7 @@ fun AppContent(
     }
 }
 
-// ✅ 在 MainActivity.kt 的末尾，或 AppContent 外部，添加这个新的辅助函数
+// 在 MainActivity.kt 的末尾，或 AppContent 外部
 private fun startCurrentTest(
     testSequence: List<String>,
     currentTestIndex: Int,
@@ -1292,16 +1383,30 @@ private fun startCurrentTest(
     if (currentTestIndex >= testSequence.size) return // 所有测试已完成
 
     val testType = testSequence[currentTestIndex]
+
+    // ✅ 核心修正：所有的数据准备逻辑都在这里完成
     val questions = when (testType) {
-        // ✅ 修正：为“以词选意”单独处理，传递完整释义
         "word_to_meaning_select" -> {
             words.mapNotNull { word ->
                 viewModel.getDefinition(word)?.let { def ->
-                    word to def // 直接传递 word 和完整的 definition
+                    word to def // 传递完整释义
                 }
             }.shuffled()
         }
-        // ✅ 其他测试保持原有逻辑，传递提取后的中文释义
+
+        "word_meaning_match" -> {
+            words.mapNotNull { word ->
+                val fullDef = viewModel.getDefinition(word)
+                val simplifiedDef = ChineseDefinitionExtractor.simplify(fullDef)
+                val ultraSimplifiedDef = ChineseDefinitionExtractor.ultraSimplify(simplifiedDef)
+                if (ultraSimplifiedDef != null) {
+                    word to ultraSimplifiedDef
+                } else {
+                    null
+                }
+            }.shuffled()
+        }
+
         "meaning_to_word_select", "chinese_spell", "chinese_select" -> {
             words.mapNotNull { word ->
                 viewModel.getDefinition(word)?.let { def ->
@@ -1314,8 +1419,7 @@ private fun startCurrentTest(
         else -> emptyList()
     }
 
-    // 调用回调，让 MainActivity 显示对应的屏幕
+    // 调用回调，把准备好的数据传递给 UI 层
     showScreen(testType, questions)
 }
-
 
