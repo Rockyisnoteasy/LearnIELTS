@@ -25,6 +25,11 @@ import com.example.learnielts.data.model.DailyWords
 import com.example.learnielts.data.model.PlanCreateRequest
 import com.example.learnielts.data.model.PlanResponse
 
+// 定义请求体
+data class SentenceReviewRequest(val word: String, val sentence: String)
+
+// 定义响应体
+data class SentenceReviewResponse(val feedback: String)
 
 interface AuthService {
 
@@ -85,5 +90,12 @@ interface AuthService {
         @Header("Authorization") authHeader: String,
         @Path("plan_id") planId: Int
     ): Response<Unit>
+
+    // 以词造句审核接口
+    @POST("judge-sentence")
+    suspend fun reviewSentence(
+        @Header("Authorization") authHeader: String,
+        @Body data: SentenceReviewRequest
+    ): SentenceReviewResponse
 
 }

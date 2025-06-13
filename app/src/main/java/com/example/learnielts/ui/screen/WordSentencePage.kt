@@ -18,6 +18,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import com.example.learnielts.ui.screen.common.DateWordPickerScreen
 import com.example.learnielts.ui.screen.common.WordPlanSource
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.learnielts.viewmodel.AuthViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 
 @Composable
 fun WordSentencePage(
@@ -35,7 +39,8 @@ fun WordSentencePage(
     }
     // ✅ 修正：如果 initialWords 不为空，直接用它初始化 selectedWords
     var selectedWords by remember { mutableStateOf(initialWords ?: emptyList()) }
-
+    val authViewModel: AuthViewModel = viewModel()
+    val tokenState by authViewModel.token.collectAsState()
     var selectedWord by remember { mutableStateOf("") }
     var sentenceInput by remember { mutableStateOf("") }
     var aiFeedback by remember { mutableStateOf<String?>(null) }
@@ -70,6 +75,8 @@ fun WordSentencePage(
                             .padding(8.dp)
                             .clickable {
                                 selectedWord = word
+                                sentenceInput = ""      // 重置输入框内容
+                                aiFeedback = null       // 清空上一条 AI 反馈
                                 stage = "write"
                             }
                     )
@@ -104,10 +111,17 @@ fun WordSentencePage(
             )
 
             Spacer(Modifier.height(12.dp))
+
             Button(onClick = {
-                aiFeedback = "🧠 AI 正在分析，请稍等..."
+                aiFeedback = "AI 正在分析，请稍等..."
                 scope.launch {
-                    aiFeedback = AIWritingJudge.judgeSentence(selectedWord, sentenceInput)
+                    // 安全地获取 token，如果 token 存在则调用接口
+                    tokenState?.let { token ->
+                        aiFeedback = AIWritingJudge.judgeSentence(selectedWord, sentenceInput, token)
+                    } ?: run {
+                        // 如果 token 不存在（用户未登录），给出提示
+                        aiFeedback = "❌ 错误：用户未登录，无法审核。"
+                    }
                 }
             }) {
                 Text("提交 AI 审核")
