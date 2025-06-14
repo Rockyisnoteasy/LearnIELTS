@@ -890,8 +890,16 @@ fun AppContent(
                                     }
                                 }
 ,
+                                // --- 替换下面的 onBack ---
                                 onBack = {
-                                    chineseSelectScreenState = "setup"
+                                    if (isInTestSequence) {
+                                        showChineseToEnglishSelect = false
+                                        isInTestSequence = false
+                                        currentTestIndex = 0
+                                        scope.launch { snackbarHostState.showSnackbar("已退出当前测试") }
+                                    } else {
+                                        chineseSelectScreenState = "setup"
+                                    }
                                 }
                             )
 
@@ -934,7 +942,14 @@ fun AppContent(
                                     }
                                 },
                                 onBack = {
-                                    chineseTestScreenState = "setup"
+                                    if (isInTestSequence) {
+                                        showChineseToEnglish = false
+                                        isInTestSequence = false
+                                        currentTestIndex = 0
+                                        scope.launch { snackbarHostState.showSnackbar("已退出当前测试") }
+                                    } else {
+                                        chineseTestScreenState = "setup"
+                                    }
                                 }
                             )
 
@@ -982,7 +997,14 @@ fun AppContent(
                                 }
 ,
                                 onBack = {
-                                    listeningTestState = "setup"
+                                    if (isInTestSequence) {
+                                        showListeningTest = false
+                                        isInTestSequence = false
+                                        currentTestIndex = 0
+                                        scope.launch { snackbarHostState.showSnackbar("已退出当前测试") }
+                                    } else {
+                                        listeningTestState = "setup"
+                                    }
                                 }
                             )
 
@@ -1085,7 +1107,14 @@ fun AppContent(
                                 }
 ,
                                 onBack = {
-                                    meaningSelectScreenState = "setup"
+                                    if (isInTestSequence) {
+                                        showMeaningSelect = false
+                                        isInTestSequence = false
+                                        currentTestIndex = 0
+                                        scope.launch { snackbarHostState.showSnackbar("已退出当前测试") }
+                                    } else {
+                                        meaningSelectScreenState = "setup"
+                                    }
                                 }
                             )
 
@@ -1132,7 +1161,17 @@ fun AppContent(
                                 }
 ,
                                 onBack = {
-                                    wordToMeaningSelectScreenState = "setup"
+                                    if (isInTestSequence) {
+                                        // 如果在测试序列中，则退出测试
+                                        showWordToMeaningSelect = false // 关闭当前测试页面
+                                        isInTestSequence = false      // 重置测试序列状态
+                                        currentTestIndex = 0          // 重置测试进度
+                                        // 可以选择性地用 Snackbar 提示用户
+                                        scope.launch { snackbarHostState.showSnackbar("已退出当前测试") }
+                                    } else {
+                                        // 如果不是在测试序列中（即从抽屉菜单单独进入），则返回设置页面
+                                        wordToMeaningSelectScreenState = "setup"
+                                    }
                                 }
                             )
 
@@ -1173,7 +1212,16 @@ fun AppContent(
                                         showWordMeaningMatch = true
                                     }
                                 },
-                                onBack = { wordMeaningMatchState = "setup" }
+                                onBack = {
+                                    if (isInTestSequence) {
+                                        showWordMeaningMatch = false
+                                        isInTestSequence = false
+                                        currentTestIndex = 0
+                                        scope.launch { snackbarHostState.showSnackbar("已退出当前测试") }
+                                    } else {
+                                        wordMeaningMatchState = "setup"
+                                    }
+                                }
                             )
                             "result" -> TestResultScreen(
                                 results = testResults, // 使用通用的测试结果
