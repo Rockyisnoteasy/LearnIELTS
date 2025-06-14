@@ -13,16 +13,24 @@
 
 package com.example.learnielts.data.remote
 
+import com.example.learnielts.data.remote.LocalDateAdapter
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import com.google.gson.GsonBuilder
+import java.time.LocalDate
 
 object ApiClient {
     private const val BASE_URL = "https://api.savanalearns.fun/"
 
+    // ✅ 1. 创建一个自定义的 Gson 实例
+    private val gson = GsonBuilder()
+        .registerTypeAdapter(LocalDate::class.java, LocalDateAdapter()) // ✅ 2. 注册我们的适配器
+        .create()
+
     val authService: AuthService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson)) // ✅ 3. 使用自定义的 Gson 实例
             .build()
             .create(AuthService::class.java)
     }

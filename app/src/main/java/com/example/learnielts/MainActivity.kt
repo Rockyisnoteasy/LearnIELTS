@@ -1,4 +1,4 @@
-// learned word里面的文件，是当日单词列表，可以与pyhon互通
+// learned word里面的文件，是当日单词列表，可以与python互通
 // csv字典文件放在assets文件夹，wordbook_android.json，也就是映射文件，放在files文件夹下面
 // 语音缓存文件也放在files文件夹下面。
 // 应用主入口，管理页面导航、状态变量（如是否展示首页、翻牌页等）
@@ -10,6 +10,9 @@
 // 用户创建学习计划后，每日的学习计划word_schedule 目录会上传到数据库的plan_daily_words，而current_plan.json会上传到数据库的learning_plans
 // csv词典，要先清洗*,```，plaintext,markdown,和单词：前面的\n，才可以转换为.db文件，词典.db文件可以提取出word，然后从提取出的word里面，跟word_book.json
 // 里面的单词做对比，不在里面的，就说明没有语音，就调取谷歌TTS。
+// 数据库的三个表，articles - 用于存储阅读文章
+//  user_article_favorites - 记录用户收藏
+//  user_article_notes - 记录用户笔记
 
 
 package com.example.learnielts
@@ -74,6 +77,13 @@ import com.example.learnielts.utils.ChineseDefinitionExtractor
 import com.example.learnielts.ui.screen.WordMeaningMatchScreen
 import com.example.learnielts.ui.screen.WordMeaningMatchSetup
 
+// ✅ 新增导入
+import com.example.learnielts.ui.screen.ArticleListScreen
+import com.example.learnielts.ui.screen.ArticleDetailScreen
+import com.example.learnielts.viewmodel.ArticleViewModel // 导入 ArticleViewModel
+
+import android.app.Application
+import com.example.learnielts.viewmodel.ArticleViewModelFactory
 
 enum class DrawerLevel {
     MAIN_MENU, // 一级菜单（最上层）➡ 功能菜单 / 自主学习计划
@@ -91,11 +101,17 @@ enum class DrawerLevel {
     PLAN_WORD_MEANING_SELECT,
     PLAN_SELF_WORD_MEANING_SELECT,
     PLAN_WORD_MATCH,
-    PLAN_SELF_WORD_MATCH
+    PLAN_SELF_WORD_MATCH,
+    // ✅ 新增：阅读相关的 DrawerLevel
+    READING_MENU, // 阅读主菜单（如果未来有收藏、我的笔记等子菜单）
+    READING_LIST, // 文章列表
+    READING_DETAIL // 文章详情
 }
 
 class MainActivity : ComponentActivity() {
     private val viewModel: DictionaryViewModel by viewModels()
+    // ✅ 声明 ArticleViewModel
+    private val articleViewModel: ArticleViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -154,6 +170,13 @@ fun DictionaryScreen(
 fun AppRoot() {
     val authViewModel: AuthViewModel = viewModel()
     val dictionaryViewModel: DictionaryViewModel = viewModel()
+    // ✅ 获取 ArticleViewModel 实例
+    val application = LocalContext.current.applicationContext as Application
+    // ✅ 使用 Factory 来创建 ArticleViewModel 实例
+    // 这样就能把正确的 authViewModel 和 application 传递进去
+    val articleViewModel: ArticleViewModel = viewModel(
+        factory = ArticleViewModelFactory(application, authViewModel)
+    )
 
     val profile by authViewModel.profile.collectAsState()
     val loggedOut by authViewModel.loggedOut.collectAsState()
@@ -175,6 +198,7 @@ fun AppRoot() {
         AppContent(
             viewModel = dictionaryViewModel,
             authViewModel = authViewModel,
+            articleViewModel = articleViewModel, // ✅ 传递 articleViewModel
             showLogin = showLogin // 这个引用是可变的
         )
     }
@@ -185,6 +209,7 @@ fun AppRoot() {
 fun AppContent(
     viewModel: DictionaryViewModel,
     authViewModel: AuthViewModel,
+    articleViewModel: ArticleViewModel, // ✅ 新增参数
     showLogin: MutableState<Boolean>
 ) {
 
@@ -244,6 +269,12 @@ fun AppContent(
     // 用于显示 Snackbar 提示
     val snackbarHostState = remember { SnackbarHostState() }
     // ✅ --- 核心修正点 1：将所有辅助函数和逻辑都定义在 AppContent 内部 ---
+
+    // ✅ 新增：阅读模块状态变量
+    var showArticleList by remember { mutableStateOf(false) }
+    var showArticleDetail by remember { mutableStateOf(false) }
+    var selectedArticleId by remember { mutableStateOf<Int?>(null) }
+
 
     // 可复用的 lambda：处理当一个测试完成时的逻辑
     val onTestFinished: (List<Any>) -> Unit = {
@@ -410,6 +441,19 @@ fun AppContent(
                                 .clickable {
                                     authViewModel.logout()
                                     showLogin.value = true
+                                    scope.launch { drawerState.close() }
+                                }
+                                .padding(16.dp)
+                        )
+
+                        // ✅ 新增：阅读菜单入口
+                        DrawerText(
+                            text = "精选阅读",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showArticleList = true // 直接跳转到文章列表
+                                    showArticleDetail = false // 确保详情页隐藏
                                     scope.launch { drawerState.close() }
                                 }
                                 .padding(16.dp)
@@ -836,6 +880,68 @@ fun AppContent(
                             }
                         }
                     }
+                    // ✅ 新增：处理阅读相关的 DrawerLevel
+                    DrawerLevel.READING_MENU -> { // 这是一个占位菜单，目前我们直接跳文章列表
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { drawerLevel = DrawerLevel.MAIN_MENU }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("返回主菜单")
+                        }
+                        Divider()
+                        DrawerText("文章列表") { // 实际上和 MAIN_MENU 里的精选阅读按钮行为一样
+                            showArticleList = true
+                            showArticleDetail = false
+                            scope.launch { drawerState.close() }
+                        }
+                        // 可以在这里添加“我的收藏”、“我的笔记”等子菜单
+                    }
+                    DrawerLevel.READING_LIST -> { // 如果用户直接回退到列表页，菜单会显示这个级别
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    // 假设从文章列表返回时，直接回退到主菜单
+                                    showArticleList = false // 隐藏文章列表
+                                    drawerLevel = DrawerLevel.MAIN_MENU // 返回主菜单
+                                    scope.launch { drawerState.close() }
+                                }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("返回主菜单")
+                        }
+                        Divider()
+                        // 可以在这里列出文章列表页的额外菜单项，如果需要的话
+                        // 暂时不显示具体文章列表，因为列表在主内容区
+                    }
+                    DrawerLevel.READING_DETAIL -> { // 如果用户在详情页打开抽屉，菜单会显示这个级别
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showArticleDetail = false // 隐藏文章详情
+                                    showArticleList = true // 返回到文章列表
+                                    drawerLevel = DrawerLevel.READING_LIST // 更新抽屉级别
+                                    scope.launch { drawerState.close() }
+                                }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("返回文章列表")
+                        }
+                        Divider()
+                        // 可以在这里列出文章详情页的额外菜单项，如果需要的话
+                    }
                 }
             }
         }
@@ -851,7 +957,29 @@ fun AppContent(
                         showLearningPlan = false
                     }
                 )
-            } else {
+            }
+            // ✅ 新增：阅读模块的导航逻辑
+            else if (showArticleDetail && selectedArticleId != null) {
+                ArticleDetailScreen(
+                    articleId = selectedArticleId!!,
+                    articleViewModel = articleViewModel,
+                    dictionaryViewModel = viewModel, // 传入 DictionaryViewModel
+                    onBack = { showArticleDetail = false; showArticleList = true } // 返回文章列表
+                )
+            }
+            else if (showArticleList) {
+                ArticleListScreen(
+                    articleViewModel = articleViewModel,
+                    onBack = { showArticleList = false }, // 返回到 HomeScreen
+                    onArticleClick = { articleId ->
+                        selectedArticleId = articleId
+                        showArticleDetail = true // 显示文章详情页
+                        showArticleList = false // 隐藏文章列表页
+                    }
+                )
+            }
+            // ✅ 保持原有的 else if 链
+            else {
                 when {
                     showWordList -> {
                         WordListScreen(
@@ -889,7 +1017,7 @@ fun AppContent(
                                         showChineseToEnglishSelect = true
                                     }
                                 }
-,
+                                ,
                                 // --- 替换下面的 onBack ---
                                 onBack = {
                                     if (isInTestSequence) {
@@ -995,7 +1123,7 @@ fun AppContent(
                                         showListeningTest = true
                                     }
                                 }
-,
+                                ,
                                 onBack = {
                                     if (isInTestSequence) {
                                         showListeningTest = false
@@ -1105,7 +1233,7 @@ fun AppContent(
                                         showMeaningSelect = true
                                     }
                                 }
-,
+                                ,
                                 onBack = {
                                     if (isInTestSequence) {
                                         showMeaningSelect = false
@@ -1159,7 +1287,7 @@ fun AppContent(
                                         showWordToMeaningSelect = true
                                     }
                                 }
-,
+                                ,
                                 onBack = {
                                     if (isInTestSequence) {
                                         // 如果在测试序列中，则退出测试
@@ -1235,6 +1363,7 @@ fun AppContent(
                         }
                     }
 
+                    // 默认显示 HomeScreen
                     else -> {
                         Column {
                             HomeScreen(
@@ -1247,6 +1376,12 @@ fun AppContent(
                                 },
                                 onEnterLearningPlan = {
                                     showLearningPlan = true
+                                },
+                                // ✅ 新增：将回调传递给 HomeScreen
+                                onEnterReadingScreen = {
+                                    showArticleList = true // 点击后显示文章列表
+                                    showArticleDetail = false // 确保详情页隐藏
+                                    scope.launch { drawerState.close() } // 关闭抽屉
                                 }
                             )
                         }
@@ -1470,4 +1605,3 @@ private fun startCurrentTest(
     // 调用回调，把准备好的数据传递给 UI 层
     showScreen(testType, questions)
 }
-

@@ -40,7 +40,9 @@ fun HomeScreen(
     context: Context,
     viewModel: DictionaryViewModel,
     onStartClicked: (List<String>) -> Unit,
-    onEnterLearningPlan: () -> Unit
+    onEnterLearningPlan: () -> Unit,
+    // ✅ 新增：用于进入阅读界面的回调
+    onEnterReadingScreen: () -> Unit
 ) {
     val today = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
     val yesterday = remember {
@@ -139,7 +141,7 @@ fun HomeScreen(
                     progress = progress,
                     remainingDays = remainingDays,
                     onStartClicked = onStartClicked,
-                    onEnterLearningPlan = onEnterLearningPlan
+                    onEditClicked = onEnterLearningPlan // 确保这里是 onEditClicked
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -158,6 +160,16 @@ fun HomeScreen(
                 }
             }
         }
+
+        // ✅ 新增：精选阅读入口
+        Button(
+            onClick = onEnterReadingScreen, // 使用传入的回调函数
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp) // 在这里添加一些顶部内边距
+        ) {
+            Text("📚 精选阅读")
+        }
     }
 }
 
@@ -173,7 +185,8 @@ private fun DisplayPlanCard(
     progress: Pair<Int, Int>,
     remainingDays: Int,
     onStartClicked: (List<String>) -> Unit,
-    onEnterLearningPlan: () -> Unit
+    // ✅ 修正：将 onEnterLearningPlan 改名为 onEditClicked 以匹配 DailyWordSummaryCard 的参数名
+    onEditClicked: () -> Unit
 ) {
     val authViewModel: AuthViewModel = viewModel()
     val scope = rememberCoroutineScope()
@@ -204,6 +217,6 @@ private fun DisplayPlanCard(
                 onStartClicked(wordsToLearn)
             }
         },
-        onEditClicked = onEnterLearningPlan
+        onEditClicked = onEditClicked // 将传入的 onEditClicked 传递给 DailyWordSummaryCard
     )
 }

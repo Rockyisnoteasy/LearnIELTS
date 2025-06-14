@@ -25,6 +25,13 @@ import com.example.learnielts.data.model.DailyWords
 import com.example.learnielts.data.model.PlanCreateRequest
 import com.example.learnielts.data.model.PlanResponse
 
+import com.example.learnielts.data.model.ArticleSnippet
+import com.example.learnielts.data.model.ArticleDetail
+import com.example.learnielts.data.model.FavoriteArticleRequest
+import com.example.learnielts.data.model.ArticleNoteRequest
+import com.example.learnielts.data.model.ArticleNoteResponse
+import com.example.learnielts.data.model.BaseResponse
+
 // 定义请求体
 data class SentenceReviewRequest(val word: String, val sentence: String)
 
@@ -53,7 +60,7 @@ interface AuthService {
     @GET("is_current_session")
     suspend fun checkSession(@Header("Authorization") auth: String): SessionStatus
 
-    // --- ✅ 以下是为学习计划同步新增的接口 ---
+    // 以下是为学习计划同步新增的接口 ---
 
     /**
      * 获取当前用户的所有学习计划
@@ -97,5 +104,80 @@ interface AuthService {
         @Header("Authorization") authHeader: String,
         @Body data: SentenceReviewRequest
     ): SentenceReviewResponse
+
+    // --- 以下是为阅读功能新增的接口 ---
+
+    /**
+     * 获取文章列表
+     * @param page 页码，默认为1
+     * @param limit 每页数量，默认为10
+     */
+    @GET("articles")
+    suspend fun getArticleList(
+        @Header("Authorization") authHeader: String,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 10
+    ): List<ArticleSnippet>
+
+    /**
+     * 获取单篇文章的详细内容
+     * @param articleId 文章ID
+     */
+    @GET("articles/{article_id}")
+    suspend fun getArticleDetail(
+        @Header("Authorization") authHeader: String,
+        @Path("article_id") articleId: Int
+    ): ArticleDetail
+
+    /**
+     * 收藏文章
+     * @param articleId 文章ID
+     */
+    @POST("articles/{article_id}/favorite")
+    suspend fun addFavorite(
+        @Header("Authorization") authHeader: String,
+        @Path("article_id") articleId: Int
+    ): BaseResponse
+
+    /**
+     * 取消收藏文章
+     * @param articleId 文章ID
+     */
+    @DELETE("articles/{article_id}/favorite")
+    suspend fun removeFavorite(
+        @Header("Authorization") authHeader: String,
+        @Path("article_id") articleId: Int
+    ): BaseResponse
+
+    /**
+     * 获取当前用户收藏的所有文章列表
+     */
+    @GET("favorites") // 假设后端有一个 /favorites 接口获取用户所有收藏
+    suspend fun getFavoriteArticles(
+        @Header("Authorization") authHeader: String
+    ): List<ArticleSnippet>
+
+    /**
+     * 添加或更新文章笔记
+     * @param articleId 文章ID
+     * @param data 包含笔记内容的请求体
+     */
+    @POST("articles/{article_id}/notes")
+    suspend fun saveNote(
+        @Header("Authorization") authHeader: String,
+        @Path("article_id") articleId: Int,
+        @Body data: ArticleNoteRequest
+    ): ArticleNoteResponse // 后端可能返回更新后的笔记信息
+
+    /**
+     * 获取某篇文章的用户笔记
+     * @param articleId 文章ID
+     */
+    @GET("articles/{article_id}/notes")
+    suspend fun getNote(
+        @Header("Authorization") authHeader: String,
+        @Path("article_id") articleId: Int
+    ): ArticleNoteResponse? // 可能没有笔记，返回 null
+
 
 }
