@@ -41,12 +41,12 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.text.withAnnotation
 import androidx.compose.ui.text.ExperimentalTextApi // ✅ 新增导入
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalTextApi::class) // ✅ 添加 ExperimentalTextApi
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalTextApi::class)
 @Composable
 fun ArticleDetailScreen(
-    articleId: Int, // 传入的文章ID
+    articleId: Int,
     articleViewModel: ArticleViewModel = viewModel(),
-    dictionaryViewModel: DictionaryViewModel = viewModel(), // 用于单词释义和播放
+    dictionaryViewModel: DictionaryViewModel = viewModel(),
     onBack: () -> Unit
 ) {
     val currentArticle by articleViewModel.currentArticle.collectAsState()
@@ -57,15 +57,13 @@ fun ArticleDetailScreen(
 
     val context = LocalContext.current
     var showNoteDialog by remember { mutableStateOf(false) }
-    var noteInput by remember { mutableStateOf("") } // ✅ 外部的 noteInput
-    val showTranslationForSentence = remember { mutableStateMapOf<Int, Boolean>() } // 动态控制每个句子的翻译显示状态
+    var noteInput by remember { mutableStateOf("") }
+    val showTranslationForSentence = remember { mutableStateMapOf<Int, Boolean>() }
 
-    // 首次进入时加载文章详情
     LaunchedEffect(articleId) {
         articleViewModel.fetchArticleDetail(articleId)
     }
 
-    // 监听错误信息
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -73,26 +71,28 @@ fun ArticleDetailScreen(
         }
     }
 
-    // 更新笔记输入框的初始值
     LaunchedEffect(userNote) {
         userNote?.let {
             noteInput = it
         } ?: run {
-            noteInput = "" // 如果没有笔记，清空输入框
+            noteInput = ""
         }
     }
 
+    // ✅ 核心修改 1: 将 State<T?> 类型的变量转为局部的、可空的 T? 类型变量
+    val article = currentArticle
+
     Scaffold(
         topBar = {
+            // ✅ 核心修改 2: 在 UI 的各个部分统一使用这个安全的局部变量
             TopAppBar(
-                title = { Text(currentArticle?.title ?: "文章详情") },
+                title = { Text(article?.title ?: "文章详情") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
-                    // 收藏/取消收藏按钮
                     IconButton(onClick = {
                         articleViewModel.toggleFavorite(articleId)
                     }) {
@@ -102,7 +102,6 @@ fun ArticleDetailScreen(
                             tint = if (isFavorite) Color.Red else LocalContentColor.current
                         )
                     }
-                    // 笔记按钮
                     IconButton(onClick = {
                         showNoteDialog = true
                     }) {
@@ -124,7 +123,7 @@ fun ArticleDetailScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-            } else if (currentArticle == null) {
+            } else if (article == null) { // ✅ 使用局部变量进行判断
                 Text(
                     text = errorMessage ?: "文章加载失败。",
                     modifier = Modifier
@@ -132,25 +131,24 @@ fun ArticleDetailScreen(
                         .padding(16.dp),
                     style = MaterialTheme.typography.bodyLarge
                 )
-            } else {
+            } else { // ✅ 进入此分支时，Kotlin 编译器知道 'article' 是非空的
                 LazyColumn(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     item {
                         Column {
-                            // 文章元数据
                             Text(
-                                text = "来源: ${currentArticle?.source ?: "未知"}",
+                                text = "来源: ${article.source ?: "未知"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = "难度: ${currentArticle?.difficultyLevel}",
+                                text = "难度: ${article.difficultyLevel}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
-                            currentArticle?.publishDate?.let {
+                            article.publishDate?.let {
                                 Text(
                                     text = "发布日期: ${it.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
                                     style = MaterialTheme.typography.bodySmall,
@@ -163,14 +161,13 @@ fun ArticleDetailScreen(
                         }
                     }
 
-                    items(currentArticle!!.content.size) { index ->
-                        val sentence = currentArticle!!.content[index]
+                    items(article.content.size) { index ->
+                        val sentence = article.content[index]
                         SentenceBlock(
                             sentence = sentence,
                             index = index,
                             dictionaryViewModel = dictionaryViewModel,
                             onToggleTranslation = {
-                                // 使用 .put() 或直接像操作 Map 一样赋值
                                 showTranslationForSentence[index] = !(showTranslationForSentence[index] ?: false)
                             },
                             showTranslation = showTranslationForSentence[index] ?: false
@@ -183,14 +180,13 @@ fun ArticleDetailScreen(
 
     // 笔记输入对话框
     if (showNoteDialog) {
-        // ✅ 直接使用外部的 noteInput
         AlertDialog(
             onDismissRequest = { showNoteDialog = false },
             title = { Text("我的笔记") },
             text = {
                 OutlinedTextField(
-                    value = noteInput, // ✅ 使用 noteInput
-                    onValueChange = { noteInput = it }, // ✅ 更新 noteInput
+                    value = noteInput,
+                    onValueChange = { noteInput = it },
                     label = { Text("输入你的笔记") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 5
@@ -198,8 +194,9 @@ fun ArticleDetailScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    currentArticle?.id?.let {
-                        articleViewModel.saveUserNote(it, noteInput) // ✅ 使用 noteInput
+                    // ✅ 这里使用安全的 'article' 变量
+                    article?.id?.let {
+                        articleViewModel.saveUserNote(it, noteInput)
                     }
                     showNoteDialog = false
                 }) {
@@ -214,7 +211,6 @@ fun ArticleDetailScreen(
         )
     }
 }
-
 
 @OptIn(ExperimentalTextApi::class) // ✅ 添加 ExperimentalTextApi
 @Composable
