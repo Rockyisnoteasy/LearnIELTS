@@ -1,6 +1,8 @@
+// 此代码是文章列表页
 // learnielts/ui/screen/ArticleListScreen.kt
 package com.example.learnielts.ui.screen
 
+import androidx.activity.compose.BackHandler // ✅ 新增导入
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +34,11 @@ fun ArticleListScreen(
     onBack: () -> Unit,
     onArticleClick: (Int) -> Unit // 回调函数，用于导航到文章详情页，传入文章ID
 ) {
+    // ✅ 新增：处理系统返回手势
+    BackHandler {
+        onBack()
+    }
+
     val articles by articleViewModel.articleList.collectAsState() // 收集文章列表状态
     val isLoading by articleViewModel.isLoading.collectAsState() // 收集加载状态
     val errorMessage by articleViewModel.errorMessage.collectAsState() // 收集错误信息

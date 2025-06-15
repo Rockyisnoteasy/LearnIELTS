@@ -1,6 +1,8 @@
+// 此代码是文章详情页
 // learnielts/ui/screen/ArticleDetailScreen.kt
 package com.example.learnielts.ui.screen
 
+import androidx.activity.compose.BackHandler // ✅ 新增导入
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -51,6 +53,11 @@ fun ArticleDetailScreen(
     dictionaryViewModel: DictionaryViewModel = viewModel(),
     onBack: () -> Unit
 ) {
+    // ✅ 新增：处理系统返回手势
+    BackHandler {
+        onBack()
+    }
+
     val currentArticle by articleViewModel.currentArticle.collectAsState()
     val isLoading by articleViewModel.isLoading.collectAsState()
     val errorMessage by articleViewModel.errorMessage.collectAsState()
@@ -78,6 +85,15 @@ fun ArticleDetailScreen(
             noteInput = it
         } ?: run {
             noteInput = ""
+        }
+    }
+
+    // 使用 DisposableEffect 来管理资源的生命周期
+    // 当这个 Composable 离开屏幕时，onDispose 块中的代码会被执行
+    DisposableEffect(Unit) {
+        onDispose {
+            Log.d("ArticleDetailScreen", "页面离开，停止所有音频播放。")
+            AudioPlayer.stop()
         }
     }
 
