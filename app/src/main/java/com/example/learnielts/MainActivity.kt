@@ -317,7 +317,7 @@ fun AppContent(
             drawerLevel = DrawerLevel.MAIN_MENU
         }
     }
-    
+
     BackHandler(enabled = drawerState.isOpen) {
         scope.launch {
             when (drawerLevel) {

@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import com.example.learnielts.ui.screen.common.DateWordPickerScreen
 import com.example.learnielts.viewmodel.DictionaryViewModel
 import com.example.learnielts.ui.screen.common.WordPlanSource
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun ListeningTestSetupScreen(
@@ -15,6 +16,9 @@ fun ListeningTestSetupScreen(
     onStartTest: (List<String>) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     DateWordPickerScreen(
         context = context,
         title = "选择日期进入听力填空",

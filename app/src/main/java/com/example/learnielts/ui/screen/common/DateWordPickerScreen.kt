@@ -16,6 +16,7 @@ import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.activity.compose.BackHandler
 
 enum class WordPlanSource {
     LEARNED_WORDS,
@@ -32,6 +33,12 @@ fun DateWordPickerScreen(
     onConfirm: (List<String>) -> Unit,
     onBack: () -> Unit
 ) {
+
+    // 处理返回手势
+    BackHandler {
+        onBack()
+    }
+
     val folder: File = when (source) {
         WordPlanSource.LEARNED_WORDS -> {
             File(context.getExternalFilesDir("learned_words") ?: File(""), "")

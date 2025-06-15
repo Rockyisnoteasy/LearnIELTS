@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.random.Random
 import com.example.learnielts.viewmodel.DictionaryViewModel
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun MeaningToWordSelect(
@@ -16,6 +17,9 @@ fun MeaningToWordSelect(
     onFinish: (results: List<Quad>) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     var currentIndex by remember { mutableStateOf(0) }
     val results = remember { mutableStateListOf<Quad>() }
 

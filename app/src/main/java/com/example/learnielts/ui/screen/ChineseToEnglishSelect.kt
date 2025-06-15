@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun ChineseToEnglishSelect(
@@ -18,6 +19,9 @@ fun ChineseToEnglishSelect(
     onFinish: (results: List<Quad>) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     var currentIndex by remember { mutableStateOf(0) }
     var selected by remember { mutableStateOf("") }
     var isAnswering by remember { mutableStateOf(true) }

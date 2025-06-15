@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun ChineseToEnglishTest(
@@ -16,6 +17,9 @@ fun ChineseToEnglishTest(
     onFinish: (results: List<Quad>) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     var currentIndex by remember { mutableStateOf(0) }
     var answer by remember { mutableStateOf(TextFieldValue("")) }
     val results = remember { mutableStateListOf<Quad>() }

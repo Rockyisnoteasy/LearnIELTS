@@ -22,6 +22,7 @@ import com.example.learnielts.utils.PlanInfo
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.learnielts.viewmodel.AuthViewModel
+import androidx.activity.compose.BackHandler
 
 
 @Composable
@@ -49,6 +50,17 @@ fun LearningPlanScreen(
     var selectedPlanName by remember { mutableStateOf<String?>(null) } // 这里的 selectedPlanName 是不带 .db 后缀的原始文件名
     var showNameConflictDialog by remember { mutableStateOf(false) }
     val authViewModel: AuthViewModel = viewModel()
+
+    // 处理返回手势
+    BackHandler {
+        if (selectedCategory != null) {
+            // 如果在第二级（已选择分类），则返回第一级
+            selectedCategory = null
+        } else {
+            // 如果在第一级（未选择分类），则关闭此页面返回首页
+            onBack()
+        }
+    }
 
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -141,6 +153,7 @@ fun LearningPlanScreen(
                         )
                     }
                 },
+                // 在 AlertDialog 的 confirmButton -> TextButton 的 onClick lambda 中
                 confirmButton = {
                     TextButton(onClick = {
                         val count = inputText.toIntOrNull()
@@ -159,14 +172,14 @@ fun LearningPlanScreen(
                                     dailyCount = count
                                 )
                                 showDialog = false // 关闭对话框
-                                // 可选：成功后可以调用 onBack() 返回首页
-                                // onBack()
+                                onBack() // ✅ 新增：成功创建计划后调用 onBack() 返回首页
                             }
                         }
                     }) {
                         Text("确定")
                     }
                 },
+// ...
                 dismissButton = {
                     TextButton(onClick = { showDialog = false }) {
                         Text("取消")

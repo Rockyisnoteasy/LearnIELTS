@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.example.learnielts.viewmodel.DictionaryViewModel
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun ListeningTestScreen(
@@ -19,6 +20,9 @@ fun ListeningTestScreen(
     onFinish: (List<Triple<String, String, Boolean>>) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     var index by remember { mutableStateOf(0) }
     var input by remember { mutableStateOf("") }
     val results = remember { mutableStateListOf<Triple<String, String, Boolean>>() }

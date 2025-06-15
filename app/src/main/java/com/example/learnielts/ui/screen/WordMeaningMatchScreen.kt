@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun WordMeaningMatchScreen(
@@ -27,6 +28,9 @@ fun WordMeaningMatchScreen(
     onFinish: (results: List<Quad>) -> Unit, // 复用 Quad 结构来记录结果
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     // --- 状态管理 ---
     var remainingPairs by remember { mutableStateOf(initialSessionPairs) }
     var currentRoundData by remember { mutableStateOf<Pair<List<String>, List<String>>?>(null) }

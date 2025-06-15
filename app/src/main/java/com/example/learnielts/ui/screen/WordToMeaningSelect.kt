@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import com.example.learnielts.viewmodel.DictionaryViewModel
 import kotlinx.coroutines.launch
 import com.example.learnielts.utils.ChineseDefinitionExtractor
+import androidx.activity.compose.BackHandler
 
 
 @Composable
@@ -19,6 +20,9 @@ fun WordToMeaningSelect(
     onFinish: (results: List<Quad>) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     var currentIndex by remember { mutableStateOf(0) }
     val results = remember { mutableStateListOf<Quad>() }
     var candidates by remember(currentIndex) { mutableStateOf<List<String>>(emptyList()) }

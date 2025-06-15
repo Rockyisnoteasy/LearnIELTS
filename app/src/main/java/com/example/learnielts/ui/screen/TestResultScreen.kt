@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 
 @Composable
 fun TestResultScreen(
@@ -15,6 +16,9 @@ fun TestResultScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
     val correctCount = results.count { it.correct }
     val total = results.size
     val percent = if (total > 0) correctCount * 100 / total else 0
