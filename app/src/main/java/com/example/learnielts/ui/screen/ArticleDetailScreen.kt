@@ -39,7 +39,9 @@ import androidx.compose.ui.draw.clip
 import android.widget.Toast
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.text.withAnnotation
-import androidx.compose.ui.text.ExperimentalTextApi // ✅ 新增导入
+import androidx.compose.ui.text.ExperimentalTextApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalTextApi::class)
 @Composable
@@ -212,7 +214,7 @@ fun ArticleDetailScreen(
     }
 }
 
-@OptIn(ExperimentalTextApi::class) // ✅ 添加 ExperimentalTextApi
+@OptIn(ExperimentalTextApi::class)
 @Composable
 fun SentenceBlock(
     sentence: Sentence,
@@ -222,25 +224,23 @@ fun SentenceBlock(
     showTranslation: Boolean
 ) {
     val context = LocalContext.current
-    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) // 点击高亮颜色
-    val wordRegex = remember { "[a-zA-Z']+".toRegex() } // 匹配英文单词，包括撇号
+    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    val wordRegex = remember { "[a-zA-Z']+".toRegex() }
+    val scope = rememberCoroutineScope() // ✅ 获取协程作用域
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .background(Color.White, shape = RoundedCornerShape(8.dp)) // 背景色和圆角
+            .background(Color.White, shape = RoundedCornerShape(8.dp))
             .padding(8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // 英文句子 (可点击单词)
+            // ... (ClickableText for sentence remains the same)
             val annotatedString = buildAnnotatedString {
                 var lastIndex = 0
                 wordRegex.findAll(sentence.sentence).forEach { matchResult ->
-                    // 添加非单词部分
                     append(sentence.sentence.substring(lastIndex, matchResult.range.first))
-
-                    // 添加可点击的单词部分
                     val word = matchResult.value
                     withAnnotation(
                         tag = "word_tag",
@@ -252,7 +252,6 @@ fun SentenceBlock(
                     }
                     lastIndex = matchResult.range.last + 1
                 }
-                // 添加句子剩余部分
                 append(sentence.sentence.substring(lastIndex))
             }
 
@@ -270,47 +269,65 @@ fun SentenceBlock(
                 modifier = Modifier.weight(1f)
             )
 
+
             Spacer(modifier = Modifier.width(8.dp))
 
-            // 播放语音按钮
+            // ✅ --- 核心修改在这里 ---
             sentence.audioUrl?.let { url ->
-                // TODO: 可以在这里处理句子语音播放，目前 VoiceCacheManager 只支持通过单词获取文件名
-                // 对于句子语音，需要考虑直接通过 URL 下载并播放，或者与后端协商好文件名规则
-                // 暂时先使用 AudioPlayer 播放本地文件，假设 url 是可直接播放的本地路径或可下载的文件名
                 IconButton(onClick = {
-                    // 假设 audioUrl 是服务器上可直接访问的音频文件名，需要下载到本地再播放
-                    // 或者你的 VoiceCacheManager 有直接下载 URL 的能力
-                    val filenameFromUrl = url.substringAfterLast('/') // 提取文件名
+                    val filenameFromUrl = url.substringAfterLast('/')
                     val localFile = VoiceCacheManager.getVoiceCacheDir(context).resolve(filenameFromUrl)
 
                     if (localFile.exists()) {
                         AudioPlayer.play(context, localFile)
                     } else {
-                        // 这是一个简化的处理，实际需要从 URL 下载文件并缓存
-                        // 由于 VoiceCacheManager 的 getOrDownloadVoiceFile 是针对 word 的，
-                        // 这里可能需要扩展 VoiceCacheManager，或者直接使用 OkHttpClient 下载
-                        Toast.makeText(context, "正在下载音频...", Toast.LENGTH_SHORT).show()
-                        // 简单示例：直接尝试播放 URL （通常不支持）或提醒用户
-                        // 实际开发中，需要更复杂的下载逻辑
-                        Log.w("ArticleDetailScreen", "Sentence audio not cached: $url. Implement download logic.")
-                        // Fallback: 尝试用 TTS 播放整个句子，但这可能不是预期的原始发音
-                        // 这一步取决于你的后端如何提供句子音频。如果后端直接提供可播放URL，就直接用MediaPlayer播放URL
-                        // 如果后端也需要前端缓存，那就需要下载逻辑
-                        // 这里暂时不播放，只做日志提醒
-                        Toast.makeText(context, "句子语音暂不可用，请联系管理员上传", Toast.LENGTH_LONG).show()
+                        // 使用协程在后台线程下载
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            try {
+                                // 在 UI 线程显示提示
+                                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    Toast.makeText(context, "首次播放，正在下载音频...", Toast.LENGTH_SHORT).show()
+                                }
+
+                                val client = okhttp3.OkHttpClient()
+                                val request = okhttp3.Request.Builder().url(url).build()
+                                val response = client.newCall(request).execute()
+
+                                if (response.isSuccessful) {
+                                    response.body?.byteStream()?.use { input ->
+                                        java.io.FileOutputStream(localFile).use { output ->
+                                            input.copyTo(output)
+                                        }
+                                    }
+                                    Log.d("AudioDownload", "下载成功: ${localFile.absolutePath}")
+                                    // 下载成功后，在 UI 线程播放
+                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        AudioPlayer.play(context, localFile)
+                                    }
+                                } else {
+                                    Log.e("AudioDownload", "下载失败: ${response.code}")
+                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        Toast.makeText(context, "音频下载失败，请稍后重试", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e("AudioDownload", "下载异常", e)
+                                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    Toast.makeText(context, "音频下载异常", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
                     }
                 }) {
                     Icon(Icons.Default.VolumeUp, contentDescription = "播放句子语音")
                 }
             }
 
-            // 翻译切换按钮
             IconButton(onClick = onToggleTranslation) {
                 Icon(Icons.Default.Translate, contentDescription = "切换翻译")
             }
         }
 
-        // 中文翻译
         if (showTranslation) {
             Text(
                 text = sentence.translation,
