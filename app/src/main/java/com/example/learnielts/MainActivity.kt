@@ -84,6 +84,7 @@ import com.example.learnielts.viewmodel.ArticleViewModel // 导入 ArticleViewMo
 
 import android.app.Application
 import com.example.learnielts.viewmodel.ArticleViewModelFactory
+import androidx.activity.compose.BackHandler
 
 enum class DrawerLevel {
     MAIN_MENU, // 一级菜单（最上层）➡ 功能菜单 / 自主学习计划
@@ -314,6 +315,46 @@ fun AppContent(
     LaunchedEffect(drawerState.isOpen) {
         if (!drawerState.isOpen) {
             drawerLevel = DrawerLevel.MAIN_MENU
+        }
+    }
+    
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch {
+            when (drawerLevel) {
+                // 第三级菜单 -> 返回到第二级菜单
+                DrawerLevel.PLAN_CARD_MENU,
+                DrawerLevel.PLAN_LISTEN_MENU,
+                DrawerLevel.PLAN_CHINESE_MENU_SELECT,
+                DrawerLevel.PLAN_CHINESE_MENU_SPELL,
+                DrawerLevel.PLAN_SENTENCE_MENU,
+                DrawerLevel.PLAN_WORD_MATCH,
+                DrawerLevel.PLAN_MEANING_SELECT,
+                DrawerLevel.PLAN_WORD_MEANING_SELECT -> {
+                    drawerLevel = DrawerLevel.PLAN_MENU
+                }
+
+                DrawerLevel.PLAN_SELF_MEANING_SELECT,
+                DrawerLevel.PLAN_SELF_WORD_MEANING_SELECT,
+                DrawerLevel.PLAN_SELF_WORD_MATCH -> {
+                    drawerLevel = DrawerLevel.SELF_PLAN_MENU
+                }
+
+                DrawerLevel.PLAN_MANAGE_ACTIONS -> {
+                    drawerLevel = DrawerLevel.PLAN_MANAGE_MENU
+                }
+
+                // 第二级菜单 -> 返回到第一级菜单
+                DrawerLevel.PLAN_MENU,
+                DrawerLevel.SELF_PLAN_MENU,
+                DrawerLevel.PLAN_MANAGE_MENU -> {
+                    drawerLevel = DrawerLevel.MAIN_MENU
+                }
+
+                // 第一级菜单 -> 关闭抽屉
+                else -> {
+                    drawerState.close()
+                }
+            }
         }
     }
 
