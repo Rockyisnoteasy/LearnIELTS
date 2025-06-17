@@ -116,7 +116,8 @@ interface AuthService {
     suspend fun getArticleList(
         @Header("Authorization") authHeader: String,
         @Query("page") page: Int = 1,
-        @Query("limit") limit: Int = 10
+        @Query("limit") limit: Int = 10,
+        @Query("article_type") articleType: String? = null
     ): List<ArticleSnippet>
 
     /**

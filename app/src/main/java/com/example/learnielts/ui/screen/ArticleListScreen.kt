@@ -26,6 +26,7 @@ import coil.compose.AsyncImage // 用于加载网络图片
 import android.widget.Toast
 import java.time.format.DateTimeFormatter // 用于格式化 LocalDate
 import androidx.compose.ui.draw.clip
+import com.example.learnielts.ui.component.DailyReadCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,19 +43,21 @@ fun ArticleListScreen(
     val articles by articleViewModel.articleList.collectAsState() // 收集文章列表状态
     val isLoading by articleViewModel.isLoading.collectAsState() // 收集加载状态
     val errorMessage by articleViewModel.errorMessage.collectAsState() // 收集错误信息
+    val latestArticle by articleViewModel.latestArticle.collectAsState()
 
     val context = LocalContext.current
 
     // 当此屏幕首次加载或 articleViewModel 实例变化时，获取文章列表
     LaunchedEffect(key1 = articleViewModel) {
         articleViewModel.fetchArticleList()
+        articleViewModel.fetchLatestArticle()
     }
 
     // 监听错误信息并显示Toast
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            articleViewModel.clearErrorMessage() // 清除错误信息，避免重复显示
+            articleViewModel.clearErrorMessage()
         }
     }
 
@@ -70,33 +73,53 @@ fun ArticleListScreen(
             )
         }
     ) { paddingValues ->
-        Column(
+        // 使用 LazyColumn 来组合“每日阅读”卡片和文章列表，这样整个页面都可以滚动
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
+                .padding(paddingValues),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // 1. 在列表顶部显示“每日阅读”卡片
+            latestArticle?.let { article ->
+                item {
+                    DailyReadCard(
+                        article = article,
+                        onStartRead = onArticleClick,
+                        // 在这个页面，“回看往期”按钮没有意义，因为已经在了，所以设为空操作
+                        onLookBack = { }
+                    )
+                }
+            }
+
+            // 2. 显示加载状态或空状态
             if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 50.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
             } else if (articles.isEmpty()) {
-                Text(
-                    text = "暂无文章可供阅读。",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                item {
+                    Text(
+                        text = "暂无更多往期文章。",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(articles) { article ->
+                // 3. 显示文章列表
+                items(articles) { article ->
+                    // 过滤掉与“每日阅读”重复的文章
+                    if (article.id != latestArticle?.id) {
                         ArticleListItem(article = article, onClick = onArticleClick)
                     }
                 }

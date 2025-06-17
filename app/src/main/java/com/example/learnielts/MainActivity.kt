@@ -1410,19 +1410,23 @@ fun AppContent(
                             HomeScreen(
                                 context = LocalContext.current,
                                 viewModel = viewModel,
+                                articleViewModel = articleViewModel, // ✅ 传入 ArticleViewModel
                                 onStartClicked = { words ->
-                                    wordsForCurrentSession = words // ✅ 修正：更新正确的变量
+                                    wordsForCurrentSession = words
                                     showFlipCard = true
                                     flipCardState = "card"
                                 },
                                 onEnterLearningPlan = {
                                     showLearningPlan = true
                                 },
-                                // ✅ 新增：将回调传递给 HomeScreen
-                                onEnterReadingScreen = {
-                                    showArticleList = true // 点击后显示文章列表
-                                    showArticleDetail = false // 确保详情页隐藏
-                                    scope.launch { drawerState.close() } // 关闭抽屉
+                                onEnterReadingScreen = { // “回看往期”和“精选阅读”按钮会调用这里
+                                    showArticleList = true
+                                    showArticleDetail = false
+                                },
+                                onArticleClick = { articleId -> // “开始阅读”按钮会调用这里
+                                    selectedArticleId = articleId
+                                    showArticleDetail = true
+                                    showArticleList = false
                                 }
                             )
                         }

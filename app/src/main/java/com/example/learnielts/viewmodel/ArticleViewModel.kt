@@ -42,6 +42,10 @@ class ArticleViewModel(
     private val _userNote = MutableStateFlow<String?>(null)
     val userNote: StateFlow<String?> = _userNote.asStateFlow()
 
+    // 用于存放“每日阅读”的最新文章
+    private val _latestArticle = MutableStateFlow<ArticleSnippet?>(null)
+    val latestArticle: StateFlow<ArticleSnippet?> = _latestArticle.asStateFlow()
+
 
     init {
         // 收集 token，并在 token 变化时触发文章列表加载
@@ -49,12 +53,34 @@ class ArticleViewModel(
             authViewModel.token.collect { token ->
                 if (token != null) {
                     fetchArticleList()
+                    fetchLatestArticle() // 自动登录或token变化时也获取最新文章
                 } else {
                     _articleList.value = emptyList() // 用户登出时清空列表
                     _currentArticle.value = null
+                    _latestArticle.value = null
                     _isFavorite.value = false
                     _userNote.value = null
                 }
+            }
+        }
+    }
+
+    fun fetchLatestArticle() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val token = authViewModel.token.value ?: run {
+                _isLoading.value = false
+                return@launch
+            }
+            try {
+                // 新增 articleType = "daily" 参数
+                val articles = articleRepository.getArticleList(token, page = 1, limit = 1, articleType = "daily")
+                _latestArticle.value = articles.firstOrNull()
+                Log.d("调试", "Fetched latest article: ${_latestArticle.value?.title}")
+            } catch (e: Exception) {
+                Log.e("调试", "Error fetching latest article", e)
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -63,16 +89,17 @@ class ArticleViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
-            val token = authViewModel.token.value // 获取当前 token
+            val token = authViewModel.token.value
             if (token == null) {
                 _errorMessage.value = "用户未登录，无法获取文章列表"
                 _isLoading.value = false
                 return@launch
             }
             try {
-                val articles = articleRepository.getArticleList(token, page, limit)
+                // ✅ 新增 articleType = "others" 参数
+                val articles = articleRepository.getArticleList(token, page, limit, articleType = "others")
                 _articleList.value = articles
-                Log.d("调试", "Fetched ${articles.size} articles.")
+                Log.d("调试", "Fetched ${articles.size} 'other' articles.")
             } catch (e: Exception) {
                 _errorMessage.value = "加载文章列表失败: ${e.message}"
                 Log.e("调试", "Error fetching article list", e)

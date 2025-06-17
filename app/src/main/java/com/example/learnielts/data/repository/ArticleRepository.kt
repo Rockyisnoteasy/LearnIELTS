@@ -14,9 +14,11 @@ import com.example.learnielts.data.model.FavoriteArticleRequest // 虽然请求�
 class ArticleRepository(private val authService: AuthService) {
 
     // 获取文章列表
-    suspend fun getArticleList(token: String, page: Int, limit: Int): List<ArticleSnippet> {
+    // 函数签名增加 articleType 参数
+    suspend fun getArticleList(token: String, page: Int, limit: Int, articleType: String? = null): List<ArticleSnippet> {
         return try {
-            authService.getArticleList("Bearer $token", page, limit)
+            // 在调用时传入 articleType
+            authService.getArticleList("Bearer $token", page, limit, articleType)
         } catch (e: Exception) {
             Log.e("调试", "Failed to get article list: ${e.message}", e)
             emptyList()

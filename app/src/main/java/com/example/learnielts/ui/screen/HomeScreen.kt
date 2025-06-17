@@ -27,6 +27,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.learnielts.viewmodel.AuthViewModel
+import com.example.learnielts.ui.component.DailyReadCard
+import com.example.learnielts.viewmodel.ArticleViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.remember
@@ -39,10 +41,11 @@ import java.util.UUID
 fun HomeScreen(
     context: Context,
     viewModel: DictionaryViewModel,
+    articleViewModel: ArticleViewModel,
     onStartClicked: (List<String>) -> Unit,
     onEnterLearningPlan: () -> Unit,
-    // ✅ 新增：用于进入阅读界面的回调
-    onEnterReadingScreen: () -> Unit
+    onEnterReadingScreen: () -> Unit,
+    onArticleClick: (Int) -> Unit
 ) {
     val today = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
     val yesterday = remember {
@@ -62,6 +65,7 @@ fun HomeScreen(
     // 确保在 HomeScreen 首次加载时，能从文件初始化一次状态
     LaunchedEffect(Unit) {
         authViewModel.loadPlans()
+        articleViewModel.fetchLatestArticle()
     }
 
     // 在计划列表加载后，主动检查并生成当天的单词列表
@@ -171,6 +175,8 @@ fun HomeScreen(
             Text("📚 精选阅读")
         }
     }
+
+
 }
 
 /**

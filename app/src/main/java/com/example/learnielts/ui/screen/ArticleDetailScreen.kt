@@ -44,6 +44,7 @@ import androidx.compose.ui.text.withAnnotation
 import androidx.compose.ui.text.ExperimentalTextApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.text.font.FontWeight
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalTextApi::class)
@@ -243,7 +244,15 @@ fun SentenceBlock(
     val context = LocalContext.current
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
     val wordRegex = remember { "[a-zA-Z']+".toRegex() }
-    val scope = rememberCoroutineScope() // ✅ 获取协程作用域
+    val scope = rememberCoroutineScope() // 获取协程作用域
+    // 根据 isHeading 属性选择不同的文本样式
+    val sentenceStyle = if (sentence.isHeading) {
+        MaterialTheme.typography.headlineSmall.copy( // 使用稍大的标题样式
+            fontWeight = FontWeight.Bold // 并加粗
+        )
+    } else {
+        MaterialTheme.typography.bodyLarge // 普通正文样式
+    }
 
     Column(
         modifier = Modifier
@@ -253,7 +262,7 @@ fun SentenceBlock(
             .padding(8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // ... (ClickableText for sentence remains the same)
+            // ... (ClickableText for sentence remains the same)·
             val annotatedString = buildAnnotatedString {
                 var lastIndex = 0
                 wordRegex.findAll(sentence.sentence).forEach { matchResult ->
@@ -274,7 +283,8 @@ fun SentenceBlock(
 
             ClickableText(
                 text = annotatedString,
-                style = MaterialTheme.typography.bodyLarge,
+                style = sentenceStyle,
+                // style = MaterialTheme.typography.bodyLarge,
                 onClick = { offset ->
                     annotatedString.getStringAnnotations(tag = "word_tag", start = offset, end = offset)
                         .firstOrNull()?.let { annotation ->
@@ -289,11 +299,12 @@ fun SentenceBlock(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // ✅ --- 核心修改在这里 ---
+
             sentence.audioUrl?.let { url ->
                 IconButton(onClick = {
-                    val filenameFromUrl = url.substringAfterLast('/')
-                    val localFile = VoiceCacheManager.getVoiceCacheDir(context).resolve(filenameFromUrl)
+                    // 使用完整的URL生成唯一的MD5哈希值作为文件名
+                    val uniqueFilename = md5(url) + ".mp3"
+                    val localFile = VoiceCacheManager.getVoiceCacheDir(context).resolve(uniqueFilename)
 
                     if (localFile.exists()) {
                         AudioPlayer.play(context, localFile)
@@ -354,4 +365,11 @@ fun SentenceBlock(
             )
         }
     }
+}
+
+// 在App端修改缓存逻辑，确保它为每一个独一无二的音频URL，生成一个同样独一无二的本地缓存文件名。最标准、最稳妥的做法是使用URL的MD5哈希值作为文件名。
+private fun md5(input: String): String {
+    val md = java.security.MessageDigest.getInstance("MD5")
+    val digest = md.digest(input.toByteArray())
+    return digest.joinToString("") { "%02x".format(it) }
 }
