@@ -45,6 +45,7 @@ import androidx.compose.ui.text.ExperimentalTextApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalTextApi::class)
@@ -242,126 +243,127 @@ fun SentenceBlock(
     showTranslation: Boolean
 ) {
     val context = LocalContext.current
-    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    val highlightColor = MaterialTheme.colorScheme.primary
     val wordRegex = remember { "[a-zA-Z']+".toRegex() }
-    val scope = rememberCoroutineScope() // 获取协程作用域
-    // 根据 isHeading 属性选择不同的文本样式
+    val scope = rememberCoroutineScope()
+
+    val WORD_TAG = "word_tag"
+    val VOLUME_TAG = "volume_tag"
+    val TRANSLATE_TAG = "translate_tag"
+
+    // ✅ 在这里分别定义小标题和正文的样式
     val sentenceStyle = if (sentence.isHeading) {
-        MaterialTheme.typography.headlineSmall.copy( // 使用稍大的标题样式
-            fontWeight = FontWeight.Bold // 并加粗
+        // --- 小标题样式 ---
+        MaterialTheme.typography.headlineSmall.copy(
+            fontSize = 24.sp,      // 小标题字号  小标题行高/字号比例保持在1.45
+            lineHeight = 35.sp,     // 小标题行高
+            fontWeight = FontWeight.Bold
         )
     } else {
-        MaterialTheme.typography.bodyLarge // 普通正文样式
+        // --- 正文样式 ---
+        MaterialTheme.typography.bodyLarge.copy(
+            fontSize = 20.sp,       // 正文字号   正文行高/字号比例保持在1.56
+            lineHeight = 30.sp      // 正文行高
+        )
+    }
+
+    val annotatedString = buildAnnotatedString {
+        var lastIndex = 0
+        wordRegex.findAll(sentence.sentence).forEach { matchResult ->
+            append(sentence.sentence.substring(lastIndex, matchResult.range.first))
+            val word = matchResult.value
+            withAnnotation(tag = WORD_TAG, annotation = word) {
+                withStyle(style = SpanStyle(color = highlightColor)) {
+                    append(word)
+                }
+            }
+            lastIndex = matchResult.range.last + 1
+        }
+        append(sentence.sentence.substring(lastIndex))
+
+        append("   ")
+
+        sentence.audioUrl?.let {
+            withAnnotation(tag = VOLUME_TAG, annotation = it) {
+                append("🔊")
+            }
+        }
+
+        append("  ")
+
+        withAnnotation(tag = TRANSLATE_TAG, annotation = "toggle") {
+            append("文A")
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(Color.White, shape = RoundedCornerShape(8.dp))
-            .padding(8.dp)
+            .padding(vertical = 8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // ... (ClickableText for sentence remains the same)·
-            val annotatedString = buildAnnotatedString {
-                var lastIndex = 0
-                wordRegex.findAll(sentence.sentence).forEach { matchResult ->
-                    append(sentence.sentence.substring(lastIndex, matchResult.range.first))
-                    val word = matchResult.value
-                    withAnnotation(
-                        tag = "word_tag",
-                        annotation = word
-                    ) {
-                        withStyle(style = SpanStyle(textDecoration = TextDecoration.Underline, color = highlightColor)) {
-                            append(word)
-                        }
+        ClickableText(
+            text = annotatedString,
+            style = sentenceStyle.copy(color = MaterialTheme.colorScheme.onBackground),
+            onClick = { offset ->
+                annotatedString.getStringAnnotations(tag = WORD_TAG, start = offset, end = offset)
+                    .firstOrNull()?.let { annotation ->
+                        val clickedWord = annotation.item
+                        showDefinitionPopup(context, clickedWord, dictionaryViewModel.getDefinition(clickedWord) ?: "（未找到释义）", dictionaryViewModel)
                     }
-                    lastIndex = matchResult.range.last + 1
-                }
-                append(sentence.sentence.substring(lastIndex))
-            }
 
-            ClickableText(
-                text = annotatedString,
-                style = sentenceStyle,
-                // style = MaterialTheme.typography.bodyLarge,
-                onClick = { offset ->
-                    annotatedString.getStringAnnotations(tag = "word_tag", start = offset, end = offset)
-                        .firstOrNull()?.let { annotation ->
-                            val clickedWord = annotation.item
-                            Log.d("ArticleDetailScreen", "Clicked word: $clickedWord")
-                            showDefinitionPopup(context, clickedWord, dictionaryViewModel.getDefinition(clickedWord) ?: "（未找到释义）", dictionaryViewModel)
-                        }
-                },
-                modifier = Modifier.weight(1f)
-            )
+                annotatedString.getStringAnnotations(tag = VOLUME_TAG, start = offset, end = offset)
+                    .firstOrNull()?.let { annotation ->
+                        val url = annotation.item
+                        val uniqueFilename = md5(url) + ".mp3"
+                        val localFile = VoiceCacheManager.getVoiceCacheDir(context).resolve(uniqueFilename)
 
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-
-            sentence.audioUrl?.let { url ->
-                IconButton(onClick = {
-                    // 使用完整的URL生成唯一的MD5哈希值作为文件名
-                    val uniqueFilename = md5(url) + ".mp3"
-                    val localFile = VoiceCacheManager.getVoiceCacheDir(context).resolve(uniqueFilename)
-
-                    if (localFile.exists()) {
-                        AudioPlayer.play(context, localFile)
-                    } else {
-                        // 使用协程在后台线程下载
-                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            try {
-                                // 在 UI 线程显示提示
-                                withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                    Toast.makeText(context, "首次播放，正在下载音频...", Toast.LENGTH_SHORT).show()
-                                }
-
-                                val client = okhttp3.OkHttpClient()
-                                val request = okhttp3.Request.Builder().url(url).build()
-                                val response = client.newCall(request).execute()
-
-                                if (response.isSuccessful) {
-                                    response.body?.byteStream()?.use { input ->
-                                        java.io.FileOutputStream(localFile).use { output ->
-                                            input.copyTo(output)
+                        if (localFile.exists()) {
+                            AudioPlayer.play(context, localFile)
+                        } else {
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        Toast.makeText(context, "首次播放，正在下载音频...", Toast.LENGTH_SHORT).show()
+                                    }
+                                    val client = okhttp3.OkHttpClient()
+                                    val request = okhttp3.Request.Builder().url(url).build()
+                                    val response = client.newCall(request).execute()
+                                    if (response.isSuccessful) {
+                                        response.body?.byteStream()?.use { input ->
+                                            java.io.FileOutputStream(localFile).use { output ->
+                                                input.copyTo(output)
+                                            }
+                                        }
+                                        withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            AudioPlayer.play(context, localFile)
+                                        }
+                                    } else {
+                                        withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            Toast.makeText(context, "音频下载失败", Toast.LENGTH_LONG).show()
                                         }
                                     }
-                                    Log.d("AudioDownload", "下载成功: ${localFile.absolutePath}")
-                                    // 下载成功后，在 UI 线程播放
+                                } catch (e: Exception) {
                                     withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        AudioPlayer.play(context, localFile)
+                                        Toast.makeText(context, "音频下载异常", Toast.LENGTH_LONG).show()
                                     }
-                                } else {
-                                    Log.e("AudioDownload", "下载失败: ${response.code}")
-                                    withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                        Toast.makeText(context, "音频下载失败，请稍后重试", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e("AudioDownload", "下载异常", e)
-                                withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                    Toast.makeText(context, "音频下载异常", Toast.LENGTH_LONG).show()
                                 }
                             }
                         }
                     }
-                }) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = "播放句子语音")
-                }
-            }
 
-            IconButton(onClick = onToggleTranslation) {
-                Icon(Icons.Default.Translate, contentDescription = "切换翻译")
+                annotatedString.getStringAnnotations(tag = TRANSLATE_TAG, start = offset, end = offset)
+                    .firstOrNull()?.let {
+                        onToggleTranslation()
+                    }
             }
-        }
+        )
 
         if (showTranslation) {
             Text(
                 text = sentence.translation,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
             )
         }
     }
