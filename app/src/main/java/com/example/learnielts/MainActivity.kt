@@ -245,6 +245,7 @@ fun AppContent(
     var wordToMeaningSelectScreenState by remember { mutableStateOf("setup") }
     var showWordMeaningMatch by remember { mutableStateOf(false) }
     var wordMeaningMatchState by remember { mutableStateOf("setup") }
+    var showUniversalResultScreen by remember { mutableStateOf(false) }
     // 控制“是否开始测试”的第一个对话框
     var showStartTestDialog by remember { mutableStateOf(false) }
     // 控制“是否开始下一轮测试”的对话框
@@ -994,7 +995,7 @@ fun AppContent(
                     }
                 )
             }
-            // ✅ 新增：阅读模块的导航逻辑
+            // 阅读模块的导航逻辑
             else if (showArticleDetail && selectedArticleId != null) {
                 ArticleDetailScreen(
                     articleId = selectedArticleId!!,
@@ -1017,6 +1018,8 @@ fun AppContent(
             // ✅ 保持原有的 else if 链
             else {
                 when {
+
+
                     showWordList -> {
                         WordListScreen(
                             context = LocalContext.current,
@@ -1045,8 +1048,9 @@ fun AppContent(
                                 questions = testQuestions,
                                 onFinish = { results ->
                                     if (isInTestSequence) {
-                                        showChineseToEnglishSelect = false
-                                        onTestFinished(results)
+                                        showChineseToEnglishSelect = false // 隐藏测试页
+                                        testResults = results              // 保存成绩
+                                        showUniversalResultScreen = true   // 显示通用成绩单
                                     } else {
                                         testResults = results
                                         chineseSelectScreenState = "result"
@@ -1077,7 +1081,7 @@ fun AppContent(
                             )
                         }
                     }
-                    // 拼写填词
+// 拼写填词
                     showChineseToEnglish -> {  //拼写版 Spell 的完整逻辑
                         when (chineseTestScreenState) {
                             "setup" -> ChineseToEnglishSetup(
@@ -1097,8 +1101,9 @@ fun AppContent(
                                 questions = testQuestions,
                                 onFinish = { results ->
                                     if (isInTestSequence) {
-                                        showChineseToEnglish = false
-                                        onTestFinished(results)
+                                        showChineseToEnglish = false // 隐藏测试页
+                                        testResults = results        // 保存成绩
+                                        showUniversalResultScreen = true   // 显示通用成绩单
                                     } else {
                                         testResults = results
                                         chineseTestScreenState = "result"
@@ -1126,7 +1131,7 @@ fun AppContent(
                                 }
                             )
                         }
-                    }  //// 拼写版 Spell 的完整逻辑
+                    }
 
                     // 听力填空
                     showListeningTest -> {
@@ -1302,8 +1307,9 @@ fun AppContent(
                                 viewModel = viewModel, // ✅ 传入
                                 onFinish = { results ->
                                     if (isInTestSequence) {
-                                        showMeaningSelect = false
-                                        onTestFinished(results)
+                                        showMeaningSelect = false // 隐藏测试页
+                                        testResults = results     // 保存成绩
+                                        showUniversalResultScreen = true // 显示通用成绩单
                                     } else {
                                         testResults = results
                                         meaningSelectScreenState = "result"
@@ -1335,7 +1341,7 @@ fun AppContent(
                         }
                     }
 
-                    // 以词选意
+// 以词选意
                     showWordToMeaningSelect -> {
                         when (wordToMeaningSelectScreenState) {
                             "setup" -> WordToMeaningSelectSetup(
@@ -1357,7 +1363,8 @@ fun AppContent(
                                 onFinish = { results ->
                                     if (isInTestSequence) {
                                         showWordToMeaningSelect = false
-                                        onTestFinished(results)
+                                        testResults = results
+                                        showUniversalResultScreen = true // 显示通用成绩单
                                     } else {
                                         testResults = results
                                         wordToMeaningSelectScreenState = "result"
@@ -1438,6 +1445,28 @@ fun AppContent(
                                 }
                             )
                         }
+                    }
+
+                    // 新增：通用测试结果页面
+                    showUniversalResultScreen -> {
+                        // 判断是否还有下一轮测试，以决定按钮文本
+                        val isLastTest = currentTestIndex >= testSequence.size - 1
+                        TestResultScreen(
+                            results = testResults,
+                            onBack = {
+                                // 用户点击返回，则彻底退出测试序列
+                                showUniversalResultScreen = false
+                                isInTestSequence = false
+                                currentTestIndex = 0 // 重置索引
+                            },
+                            onRetry = {
+                                // 用户点击“重试/继续”按钮，则进入下一环节
+                                showUniversalResultScreen = false
+                                onTestFinished(testResults) // 调用 onTestFinished 继续流程
+                            },
+                            // 根据是否为最后一轮，动态改变按钮文字
+                            retryButtonText = if (isLastTest) "完成测试" else "继续下一轮"
+                        )
                     }
 
                     // 默认显示 HomeScreen

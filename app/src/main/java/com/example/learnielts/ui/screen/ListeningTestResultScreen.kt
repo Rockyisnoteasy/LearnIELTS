@@ -14,7 +14,8 @@ import androidx.compose.ui.unit.dp
 fun ListeningTestResultScreen(
     results: List<Triple<String, String, Boolean>>,
     onRetry: () -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    retryButtonText: String = "重做"
 ) {
     val correctCount = results.count { it.third }
     val total = results.size
@@ -56,7 +57,7 @@ fun ListeningTestResultScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Button(onClick = onRetry) {
-                Text("重做")
+                Text(retryButtonText) // 使用新参数
             }
             Button(onClick = onExit) {
                 Text("退出")

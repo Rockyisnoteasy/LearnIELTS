@@ -14,7 +14,8 @@ import androidx.activity.compose.BackHandler
 fun TestResultScreen(
     results: List<Quad>,
     onBack: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    retryButtonText: String = "重试"
 ) {
     BackHandler {
         onBack()
@@ -43,7 +44,7 @@ fun TestResultScreen(
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onRetry) {
-                Text("重试")
+                Text(retryButtonText) // 使用新参数
             }
             Button(onClick = onBack) {
                 Text("返回")
