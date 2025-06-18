@@ -50,6 +50,14 @@ fun FlipCardScreen(
     }
 
     val word = wordList.getOrNull(currentIndex) ?: return onSessionComplete()
+    // 使用 LaunchedEffect 监听 currentIndex 的变化
+    // 当翻到新卡片时，key (currentIndex) 会改变，此代码块会重新执行
+    LaunchedEffect(key1 = currentIndex) {
+        // 确保 word 不为空，然后调用 ViewModel 的播放函数
+        if (word.isNotBlank()) {
+            viewModel.playWord(word, context)
+        }
+    }
     val fullDef = viewModel.getDefinition(word) ?: "（无释义）"
     val shortDef = remember(word) {
         val start = fullDef.indexOf("中文释义：")

@@ -35,6 +35,12 @@ import androidx.compose.runtime.remember
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import java.util.UUID
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+
 
 
 @Composable
@@ -45,7 +51,8 @@ fun HomeScreen(
     onStartClicked: (List<String>) -> Unit,
     onEnterLearningPlan: () -> Unit,
     onEnterReadingScreen: () -> Unit,
-    onArticleClick: (Int) -> Unit
+    onArticleClick: (Int) -> Unit,
+    onEnterNotification: () -> Unit
 ) {
     val today = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
     val yesterday = remember {
@@ -107,7 +114,25 @@ fun HomeScreen(
             .padding(16.dp)
     ) {
 
-        DictionarySearchBar(viewModel)
+        // 使用 Row 布局将搜索框和图标放在一行
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically // 垂直居中对齐
+        ) {
+            // 使用 Box 并设置 weight，让搜索框占据大部分空间
+            Box(modifier = Modifier.weight(1f)) {
+                DictionarySearchBar(viewModel)
+            }
+
+            // 在搜索框和图标之间添加一点间距
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // 这是我们新增的通知图标按钮
+            IconButton(onClick = onEnterNotification) { // 点击时调用我们新加的回调
+                Icon(Icons.Default.Notifications, contentDescription = "通知")
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (allPlans.isEmpty()) {

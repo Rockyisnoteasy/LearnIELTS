@@ -77,7 +77,6 @@ import com.example.learnielts.utils.ChineseDefinitionExtractor
 import com.example.learnielts.ui.screen.WordMeaningMatchScreen
 import com.example.learnielts.ui.screen.WordMeaningMatchSetup
 
-// ✅ 新增导入
 import com.example.learnielts.ui.screen.ArticleListScreen
 import com.example.learnielts.ui.screen.ArticleDetailScreen
 import com.example.learnielts.viewmodel.ArticleViewModel // 导入 ArticleViewModel
@@ -85,6 +84,12 @@ import com.example.learnielts.viewmodel.ArticleViewModel // 导入 ArticleViewMo
 import android.app.Application
 import com.example.learnielts.viewmodel.ArticleViewModelFactory
 import androidx.activity.compose.BackHandler
+
+import com.example.learnielts.viewmodel.NotificationViewModel
+import com.example.learnielts.viewmodel.NotificationViewModelFactory
+import com.example.learnielts.ui.screen.NotificationScreen
+import com.example.learnielts.ui.screen.NotificationDetailScreen
+import com.example.learnielts.data.model.Notification
 
 enum class DrawerLevel {
     MAIN_MENU, // 一级菜单（最上层）➡ 功能菜单 / 自主学习计划
@@ -306,6 +311,19 @@ fun AppContent(
             }
         }
     }
+
+    // 在使用 application 变量之前，通过 LocalContext 获取它
+    val application = LocalContext.current.applicationContext as Application
+
+    // 实例化 NotificationViewModel
+    val notificationViewModel: NotificationViewModel = viewModel(
+        factory = NotificationViewModelFactory(application, authViewModel)
+    )
+    // 新增状态
+    var showNotificationScreen by remember { mutableStateOf(false) }
+
+    var showNotificationDetail by remember { mutableStateOf(false) }
+    var selectedNotification by remember { mutableStateOf<Notification?>(null) }
 
     // 自动重置菜单状态
     LaunchedEffect(drawerState.isOpen) {
@@ -985,7 +1003,25 @@ fun AppContent(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
 
-            if (showLearningPlan) {
+            if (showNotificationDetail && selectedNotification != null) {
+                NotificationDetailScreen(
+                    notification = selectedNotification!!,
+                    onBack = { showNotificationDetail = false }
+                )
+            }
+            // ✅ 3. 修改 NotificationScreen 的调用，传入点击回调
+            else if (showNotificationScreen) {
+                NotificationScreen(
+                    viewModel = notificationViewModel,
+                    onBack = { showNotificationScreen = false },
+                    onNotificationClick = { notification ->
+                        selectedNotification = notification      // 保存被点击的通知
+                        showNotificationDetail = true            // 准备显示详情页
+                        showNotificationScreen = false           // 隐藏列表页
+                    }
+                )
+            }
+            else if (showLearningPlan) {
                 LearningPlanScreen(
                     onBack = { showLearningPlan = false },
                     onPlanSelected = { planName ->
@@ -1013,6 +1049,7 @@ fun AppContent(
                         showArticleDetail = true // 显示文章详情页
                         showArticleList = false // 隐藏文章列表页
                     }
+
                 )
             }
             // ✅ 保持原有的 else if 链
@@ -1492,6 +1529,9 @@ fun AppContent(
                                     selectedArticleId = articleId
                                     showArticleDetail = true
                                     showArticleList = false
+                                },
+                                onEnterNotification = {
+                                    showNotificationScreen = true
                                 }
                             )
                         }

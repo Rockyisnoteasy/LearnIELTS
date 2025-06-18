@@ -31,6 +31,7 @@ import com.example.learnielts.data.model.FavoriteArticleRequest
 import com.example.learnielts.data.model.ArticleNoteRequest
 import com.example.learnielts.data.model.ArticleNoteResponse
 import com.example.learnielts.data.model.BaseResponse
+import com.example.learnielts.data.model.Notification
 
 // 定义请求体
 data class SentenceReviewRequest(val word: String, val sentence: String)
@@ -179,6 +180,16 @@ interface AuthService {
         @Header("Authorization") authHeader: String,
         @Path("article_id") articleId: Int
     ): ArticleNoteResponse? // 可能没有笔记，返回 null
+
+    /**
+     * 获取通知列表
+     */
+    @GET("notifications")
+    suspend fun getNotifications(
+        @Header("Authorization") authHeader: String,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): List<Notification>
 
 
 }
