@@ -16,6 +16,13 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import com.example.learnielts.utils.VoiceCacheManager
+
 
 class ArticleViewModel(
     application: Application,
@@ -139,6 +146,65 @@ class ArticleViewModel(
                 _isLoading.value = false
             }
         }
+    }
+
+    // 在 ArticleViewModel 类的内部
+
+    /**
+     * 预缓存文章内所有句子的音频文件。
+     * @param articleDetail 包含句子列表的文章详情对象。
+     */
+    fun precacheArticleAudio(articleDetail: ArticleDetail) {
+        viewModelScope.launch(Dispatchers.IO) { // 在后台 IO 线程执行
+            Log.d("调试", "【音频预缓存】开始为文章 '${articleDetail.title}' 预缓存音频...")
+
+            val voiceCacheDir = VoiceCacheManager.getVoiceCacheDir(getApplication())
+            if (!voiceCacheDir.exists()) {
+                voiceCacheDir.mkdirs()
+            }
+            val client = OkHttpClient()
+
+            // 按顺序遍历文章中的每一个句子
+            for ((index, sentence) in articleDetail.content.withIndex()) {
+                // 确保句子有音频URL
+                sentence.audioUrl?.let { url ->
+                    // 使用和详情页一致的MD5算法生成唯一文件名
+                    val fileName = md5(url) + ".mp3"
+                    val localFile = File(voiceCacheDir, fileName)
+
+                    // 如果文件不存在，则下载
+                    if (!localFile.exists()) {
+                        try {
+                            Log.d("调试", "【音频预缓存】缓存第 ${index + 1} 句: $url")
+                            val request = Request.Builder().url(url).build()
+                            val response = client.newCall(request).execute()
+                            if (response.isSuccessful) {
+                                response.body?.byteStream()?.use { input ->
+                                    localFile.outputStream().use { output ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                                Log.d("调试", "【音频预缓存】✅ 第 ${index + 1} 句缓存成功 -> ${localFile.name}")
+                            } else {
+                                Log.e("调试", "【音频预缓存】❌ 第 ${index + 1} 句下载失败，响应码: ${response.code}")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("调试", "【音频预缓存】❌ 第 ${index + 1} 句缓存异常: ${e.message}")
+                        }
+                    } else {
+                        Log.d("调试", "【音频预缓存】⏩ 第 ${index + 1} 句已存在，跳过。")
+                    }
+                }
+            }
+            Log.d("调试", "【音频预缓存】文章 '${articleDetail.title}' 的所有音频已处理完毕。")
+        }
+    }
+
+    // MD5 函数，如果 ViewModel 中没有，可以添加
+    private fun md5(input: String): String {
+        val md = java.security.MessageDigest.getInstance("MD5")
+        val digest = md.digest(input.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
     }
 
     private fun checkFavoriteStatus(token: String, articleId: Int) {

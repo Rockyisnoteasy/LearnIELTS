@@ -76,6 +76,13 @@ fun ArticleDetailScreen(
         articleViewModel.fetchArticleDetail(articleId)
     }
 
+    // 当文章数据成功加载后，触发音频预缓存
+    LaunchedEffect(currentArticle) {
+        currentArticle?.let { article ->
+            articleViewModel.precacheArticleAudio(article)
+        }
+    }
+
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
