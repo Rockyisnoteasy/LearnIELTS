@@ -276,8 +276,7 @@ fun AppContent(
     var showArticleDetail by remember { mutableStateOf(false) }
     var selectedArticleId by remember { mutableStateOf<Int?>(null) }
 
-
-    // 可复用的 lambda：处理当一个测试完成时的逻辑
+// 可复用的 lambda：处理当一个测试完成时的逻辑
     val onTestFinished: (List<Any>) -> Unit = {
         currentTestIndex++
         if (currentTestIndex >= testSequence.size) {
@@ -286,27 +285,23 @@ fun AppContent(
             currentTestIndex = 0
             scope.launch { snackbarHostState.showSnackbar("恭喜，所有测试已完成！") }
         } else {
-            if (doNotRemindForSession) {
-                // ✅ 修正调用方式，指向唯一的、正确的外部函数
-                startCurrentTest(
-                    testSequence = testSequence,
-                    currentTestIndex = currentTestIndex,
-                    words = wordsForCurrentSession,
-                    viewModel = viewModel
-                ) { screenName, questionsData ->
-                    testQuestions = questionsData
-                    when (screenName) {
-                        "word_to_meaning_select" -> { wordToMeaningSelectScreenState = "test"; showWordToMeaningSelect = true }
-                        "word_meaning_match" -> { wordMeaningMatchState = "test"; showWordMeaningMatch = true }
-                        "meaning_to_word_select" -> { meaningSelectScreenState = "test"; showMeaningSelect = true }
-                        "chinese_select" -> { chineseSelectScreenState = "test"; showChineseToEnglishSelect = true }
-                        "chinese_spell" -> { chineseTestScreenState = "test"; showChineseToEnglish = true }
-                        "listening_test" -> { listeningWordList = wordsForCurrentSession.shuffled(); listeningTestState = "test"; showListeningTest = true }
-                        "word_sentence" -> { showWordSentencePage = true }
-                    }
+            // 直接开始下一轮测试，不再有 if/else 判断
+            startCurrentTest(
+                testSequence = testSequence,
+                currentTestIndex = currentTestIndex,
+                words = wordsForCurrentSession,
+                viewModel = viewModel
+            ) { screenName, questionsData ->
+                testQuestions = questionsData
+                when (screenName) {
+                    "word_to_meaning_select" -> { wordToMeaningSelectScreenState = "test"; showWordToMeaningSelect = true }
+                    "word_meaning_match" -> { wordMeaningMatchState = "test"; showWordMeaningMatch = true }
+                    "meaning_to_word_select" -> { meaningSelectScreenState = "test"; showMeaningSelect = true }
+                    "chinese_select" -> { chineseSelectScreenState = "test"; showChineseToEnglishSelect = true }
+                    "chinese_spell" -> { chineseTestScreenState = "test"; showChineseToEnglish = true }
+                    "listening_test" -> { listeningWordList = wordsForCurrentSession.shuffled(); listeningTestState = "test"; showListeningTest = true }
+                    "word_sentence" -> { showWordSentencePage = true }
                 }
-            } else {
-                showNextTestDialog = true
             }
         }
     }
@@ -1214,11 +1209,52 @@ fun AppContent(
                                 viewModel = viewModel,
                                 // ✅ 当学习完成时，执行这里的逻辑
                                 onSessionComplete = {
-                                    showFlipCard = false // 1. 关闭记忆卡界面
-                                    flipCardState = "menu" // 2. 重置状态，以便下次能从菜单进入
-                                    showStartTestDialog = true // 3. 弹出“是否开始测试”的对话框
+                                    showFlipCard = false // 关闭记忆卡界面
+                                    flipCardState = "menu" // 重置状态
+                                    isInTestSequence = true // 直接进入测试序列
+                                    currentTestIndex = 0 // 从第一个测试开始
+
+                                    // 直接调用辅助函数开始第一个测试
+                                    startCurrentTest(
+                                        testSequence = testSequence,
+                                        currentTestIndex = 0,
+                                        words = wordsForCurrentSession,
+                                        viewModel = viewModel
+                                    ) { screenName, questionsData ->
+                                        testQuestions = questionsData
+                                        when (screenName) {
+                                            "word_to_meaning_select" -> {
+                                                wordToMeaningSelectScreenState = "test"
+                                                showWordToMeaningSelect = true
+                                            }
+                                            "word_meaning_match" -> {
+                                                wordMeaningMatchState = "test"
+                                                showWordMeaningMatch = true
+                                            }
+                                            "meaning_to_word_select" -> {
+                                                meaningSelectScreenState = "test"
+                                                showMeaningSelect = true
+                                            }
+                                            "chinese_select" -> {
+                                                chineseSelectScreenState = "test"
+                                                showChineseToEnglishSelect = true
+                                            }
+                                            "chinese_spell" -> {
+                                                chineseTestScreenState = "test"
+                                                showChineseToEnglish = true
+                                            }
+                                            "listening_test" -> {
+                                                listeningWordList = wordsForCurrentSession.shuffled()
+                                                listeningTestState = "test"
+                                                showListeningTest = true
+                                            }
+                                            "word_sentence" -> {
+                                                showWordSentencePage = true
+                                            }
+                                        }
+                                    }
                                 },
-                                // ✅ 当用户中途按返回键时，执行这里的逻辑
+                                // 当用户中途按返回键时，执行这里的逻辑
                                 onBackPress = {
                                     showFlipCard = false // 1. 直接关闭记忆卡界面
                                     flipCardState = "menu" // 2. 重置状态
