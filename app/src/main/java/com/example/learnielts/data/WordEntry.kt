@@ -5,5 +5,6 @@ package com.example.learnielts.data
 
 data class WordEntry(
     val word: String,
-    val definition: String
+    val definition: String,
+    val relatedWords: String?
 )

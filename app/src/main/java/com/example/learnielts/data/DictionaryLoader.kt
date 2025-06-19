@@ -15,7 +15,7 @@ object DictionaryLoader {
             val dao = AppDatabase.getInstance(context).dictionaryDao()
             val entries = dao.getAll() // ✅ 用挂起函数 getAll()
             Log.d("调试", "✅ 词典加载完成，共 ${entries.size} 项")
-            entries.map { WordEntry(it.word, it.definition) }
+            entries.map { WordEntry(it.word, it.definition, it.relatedWords) }
         } catch (e: Exception) {
             Log.e("调试", "❌ 加载词典失败：${e.message}", e)
             emptyList()
