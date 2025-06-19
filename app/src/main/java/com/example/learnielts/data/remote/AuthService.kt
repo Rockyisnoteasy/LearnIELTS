@@ -32,6 +32,11 @@ import com.example.learnielts.data.model.ArticleNoteRequest
 import com.example.learnielts.data.model.ArticleNoteResponse
 import com.example.learnielts.data.model.BaseResponse
 import com.example.learnielts.data.model.Notification
+import com.example.learnielts.data.model.DailySessionResponse
+import com.example.learnielts.data.model.ReviewResult
+import com.example.learnielts.data.model.SubmitReviewRequest
+import com.example.learnielts.data.model.MasteredWordsResponse
+
 
 // 定义请求体
 data class SentenceReviewRequest(val word: String, val sentence: String)
@@ -191,5 +196,22 @@ interface AuthService {
         @Query("limit") limit: Int = 20
     ): List<Notification>
 
+    @GET("learning/daily-session")
+    suspend fun getDailySession(
+        @Header("Authorization") authHeader: String,
+        @Query("plan_id") planId: Int
+    ): DailySessionResponse
+
+    // 新增获取已掌握单词列表的接口
+    @GET("learning/mastered-words")
+    suspend fun getMasteredWords(
+        @Header("Authorization") authHeader: String
+    ): MasteredWordsResponse
+
+    @POST("reviews/results")
+    suspend fun submitReviewResults(
+        @Header("Authorization") authHeader: String,
+        @Body request: SubmitReviewRequest
+    ): Response<Unit> // 我们只关心是否成功(200 OK)，所以响应体可以是Unit
 
 }

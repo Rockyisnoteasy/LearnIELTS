@@ -10,16 +10,17 @@ interface PlanWordDao {
     @Query("SELECT word FROM plan_words")
     suspend fun getAllWords(): List<String>
 
-    @Query("""
-        SELECT word FROM plan_words
-        WHERE word NOT IN (:learnedWords)
-        ORDER BY RANDOM()
-        LIMIT :count
-    """)
-    suspend fun getUnlearnedWords(learnedWords: List<String>, count: Int): List<String>
-
     // 返回单词总数的 Int，用于日志记录、进度计算、动态分配等目的
     @Query("SELECT COUNT(*) FROM plan_words")
     suspend fun countAllWords(): Int
+
+    // 这是我们最终保留的函数
+    @Query("""
+        SELECT word FROM plan_words
+        WHERE word NOT IN (:excludedWords)
+        ORDER BY RANDOM()
+        LIMIT :count
+    """)
+    suspend fun getNewWordsExcluding(excludedWords: List<String>, count: Int): List<String>
 
 }

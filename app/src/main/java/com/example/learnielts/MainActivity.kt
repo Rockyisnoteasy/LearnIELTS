@@ -37,6 +37,7 @@ import com.example.learnielts.viewmodel.DictionaryViewModel
 import com.example.learnielts.viewmodel.TTSProvider
 
 import androidx.compose.foundation.clickable
+import com.example.learnielts.data.model.TestResultForSubmission
 
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.ui.Alignment
@@ -90,12 +91,18 @@ import com.example.learnielts.viewmodel.NotificationViewModelFactory
 import com.example.learnielts.ui.screen.NotificationScreen
 import com.example.learnielts.ui.screen.NotificationDetailScreen
 import com.example.learnielts.data.model.Notification
+import com.example.learnielts.utils.PlanInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 enum class DrawerLevel {
     MAIN_MENU, // 一级菜单（最上层）➡ 功能菜单 / 自主学习计划
     PLAN_MENU, // 学习计划
     SELF_PLAN_MENU, // 自主学习计划
-    PLAN_CARD_MENU,   // ✅ 新增：点击“记忆卡”后显示学习计划
+    PLAN_CARD_MENU,   // 点击“记忆卡”后显示学习计划
     PLAN_LISTEN_MENU,
     PLAN_CHINESE_MENU_SELECT, // 中翻英选字母填词
     PLAN_CHINESE_MENU_SPELL, // 中翻英填词
@@ -108,7 +115,7 @@ enum class DrawerLevel {
     PLAN_SELF_WORD_MEANING_SELECT,
     PLAN_WORD_MATCH,
     PLAN_SELF_WORD_MATCH,
-    // ✅ 新增：阅读相关的 DrawerLevel
+    // 阅读相关的 DrawerLevel
     READING_MENU, // 阅读主菜单（如果未来有收藏、我的笔记等子菜单）
     READING_LIST, // 文章列表
     READING_DETAIL // 文章详情
@@ -249,6 +256,7 @@ fun AppContent(
     var showWordToMeaningSelect by remember { mutableStateOf(false) }
     var wordToMeaningSelectScreenState by remember { mutableStateOf("setup") }
     var showWordMeaningMatch by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var wordMeaningMatchState by remember { mutableStateOf("setup") }
     var showUniversalResultScreen by remember { mutableStateOf(false) }
     // 控制“是否开始测试”的第一个对话框
@@ -262,6 +270,8 @@ fun AppContent(
     // 当前在测试序列中的位置索引
     var currentTestIndex by remember { mutableStateOf(0) }
     // 定义测试序列的顺序
+    // 新增一个 state，用于记录当前正在进行的测试属于哪个计划
+    var currentPlanForTest by remember { mutableStateOf<PlanInfo?>(null) }
     val testSequence = remember {
         listOf(
             "word_to_meaning_select", // 以词选意
@@ -1084,17 +1094,25 @@ fun AppContent(
                             "test" -> ChineseToEnglishSelect(
                                 questions = testQuestions,
                                 onFinish = { results ->
+                                    // 从我们记录的状态中获取 planId
+                                    val planId = currentPlanForTest?.serverId
+                                    if (planId != null) {
+                                        val resultsForSubmission = results.map { TestResultForSubmission(it.word, it.correct) }
+                                        // 上报结果时，附带上 planId 和测试类型
+                                        authViewModel.submitReviewResults(planId, resultsForSubmission, "medium_recall")
+                                    }
+
+                                    // 后续界面跳转逻辑不变
                                     if (isInTestSequence) {
-                                        showChineseToEnglishSelect = false // 隐藏测试页
-                                        testResults = results              // 保存成绩
-                                        showUniversalResultScreen = true   // 显示通用成绩单
+                                        showChineseToEnglishSelect = false
+                                        testResults = results
+                                        showUniversalResultScreen = true
                                     } else {
                                         testResults = results
                                         chineseSelectScreenState = "result"
                                         showChineseToEnglishSelect = true
                                     }
-                                }
-                                ,
+                                },
                                 // --- 替换下面的 onBack ---
                                 onBack = {
                                     if (isInTestSequence) {
@@ -1118,7 +1136,7 @@ fun AppContent(
                             )
                         }
                     }
-// 拼写填词
+                    // 拼写填词
                     showChineseToEnglish -> {  //拼写版 Spell 的完整逻辑
                         when (chineseTestScreenState) {
                             "setup" -> ChineseToEnglishSetup(
@@ -1137,10 +1155,17 @@ fun AppContent(
                             "test" -> ChineseToEnglishTest(
                                 questions = testQuestions,
                                 onFinish = { results ->
+                                    val planId = currentPlanForTest?.serverId
+                                    if (planId != null) {
+                                        val resultsForSubmission = results.map { TestResultForSubmission(it.word, it.correct) }
+                                        // 上报 high_recall 类型
+                                        authViewModel.submitReviewResults(planId, resultsForSubmission, "high_recall")
+                                    }
+
                                     if (isInTestSequence) {
-                                        showChineseToEnglish = false // 隐藏测试页
-                                        testResults = results        // 保存成绩
-                                        showUniversalResultScreen = true   // 显示通用成绩单
+                                        showChineseToEnglish = false
+                                        testResults = results
+                                        showUniversalResultScreen = true
                                     } else {
                                         testResults = results
                                         chineseTestScreenState = "result"
@@ -1192,6 +1217,14 @@ fun AppContent(
                                 words = listeningWordList,
                                 viewModel = viewModel,
                                 onFinish = { results ->
+                                    val planId = currentPlanForTest?.serverId
+                                    if (planId != null) {
+                                        // Triple的结构是(correct, userInput, isCorrect)，所以取 it.first 和 it.third
+                                        val resultsForSubmission = results.map { TestResultForSubmission(it.first, it.third) }
+                                        // 上报 high_recall 类型
+                                        authViewModel.submitReviewResults(planId, resultsForSubmission, "high_recall")
+                                    }
+
                                     if (isInTestSequence) {
                                         showListeningTest = false
                                         onTestFinished(results)
@@ -1200,8 +1233,7 @@ fun AppContent(
                                         listeningTestState = "result"
                                         showListeningTest = true
                                     }
-                                }
-                                ,
+                                },
                                 onBack = {
                                     if (isInTestSequence) {
                                         showListeningTest = false
@@ -1343,17 +1375,23 @@ fun AppContent(
                                 questions = testQuestions,
                                 viewModel = viewModel, // ✅ 传入
                                 onFinish = { results ->
+                                    val planId = currentPlanForTest?.serverId
+                                    if (planId != null) {
+                                        val resultsForSubmission = results.map { TestResultForSubmission(it.word, it.correct) }
+                                        // 上报 medium_recall 类型
+                                        authViewModel.submitReviewResults(planId, resultsForSubmission, "medium_recall")
+                                    }
+
                                     if (isInTestSequence) {
-                                        showMeaningSelect = false // 隐藏测试页
-                                        testResults = results     // 保存成绩
-                                        showUniversalResultScreen = true // 显示通用成绩单
+                                        showMeaningSelect = false
+                                        testResults = results
+                                        showUniversalResultScreen = true
                                     } else {
                                         testResults = results
                                         meaningSelectScreenState = "result"
                                         showMeaningSelect = true
                                     }
-                                }
-                                ,
+                                },
                                 onBack = {
                                     if (isInTestSequence) {
                                         showMeaningSelect = false
@@ -1378,7 +1416,7 @@ fun AppContent(
                         }
                     }
 
-// 以词选意
+                    // 以词选意
                     showWordToMeaningSelect -> {
                         when (wordToMeaningSelectScreenState) {
                             "setup" -> WordToMeaningSelectSetup(
@@ -1398,17 +1436,23 @@ fun AppContent(
                                 questions = testQuestions,
                                 viewModel = viewModel,
                                 onFinish = { results ->
+                                    val planId = currentPlanForTest?.serverId
+                                    if (planId != null) {
+                                        val resultsForSubmission = results.map { TestResultForSubmission(it.word, it.correct) }
+                                        // 上报 low_selection 类型
+                                        authViewModel.submitReviewResults(planId, resultsForSubmission, "low_selection")
+                                    }
+
                                     if (isInTestSequence) {
                                         showWordToMeaningSelect = false
                                         testResults = results
-                                        showUniversalResultScreen = true // 显示通用成绩单
+                                        showUniversalResultScreen = true
                                     } else {
                                         testResults = results
                                         wordToMeaningSelectScreenState = "result"
                                         showWordToMeaningSelect = true
                                     }
-                                }
-                                ,
+                                },
                                 onBack = {
                                     if (isInTestSequence) {
                                         // 如果在测试序列中，则退出测试
@@ -1452,6 +1496,13 @@ fun AppContent(
                             "test" -> WordMeaningMatchScreen(
                                 initialSessionPairs = testQuestions,
                                 onFinish = { results ->
+                                    val planId = currentPlanForTest?.serverId
+                                    if (planId != null) {
+                                        val resultsForSubmission = results.map { TestResultForSubmission(it.word, it.correct) }
+                                        // 上报 low_selection 类型
+                                        authViewModel.submitReviewResults(planId, resultsForSubmission, "low_selection")
+                                    }
+
                                     if (isInTestSequence) {
                                         showWordMeaningMatch = false
                                         onTestFinished(results)
@@ -1512,20 +1563,55 @@ fun AppContent(
                             HomeScreen(
                                 context = LocalContext.current,
                                 viewModel = viewModel,
-                                articleViewModel = articleViewModel, // ✅ 传入 ArticleViewModel
-                                onStartClicked = { words ->
-                                    wordsForCurrentSession = words
-                                    showFlipCard = true
-                                    flipCardState = "card"
+                                articleViewModel = articleViewModel,
+                                authViewModel = authViewModel,
+                                // ✅ 实现新的 onStartReview 回调
+                                onStartReview = { plan ->
+                                    // 当点击“复习”时，记录下当前操作的计划
+                                    currentPlanForTest = plan
+                                    // 从 viewModel 中获取该计划的复习词列表
+                                    val reviewWords = authViewModel.dailySessions.value[plan.serverId]?.reviewWords ?: emptyList()
+                                    if (reviewWords.isNotEmpty()) {
+                                        wordsForCurrentSession = reviewWords
+                                        // 直接进入学习环节
+                                        flipCardState = "card"
+                                        showFlipCard = true
+                                    } else {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("今天没有需要复习的单词！")
+                                        }
+                                    }
+                                },
+                                // ✅ 实现新的 onStartLearnNew 回调
+                                onStartLearnNew = { plan ->
+                                    // 当点击“新学”时，记录下当前操作的计划
+                                    currentPlanForTest = plan
+                                    scope.launch {
+                                        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                        // 从本地文件中读取当天已生成的新词
+                                        val newWords = withContext(Dispatchers.IO) {
+                                            FileHelper.getWordsForDate(context, today, plan.planName)
+                                        }
+                                        if (newWords.isNotEmpty()) {
+                                            wordsForCurrentSession = newWords
+                                            // 直接进入学习环节
+                                            flipCardState = "card"
+                                            showFlipCard = true
+                                        } else {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("今天的新词还没准备好或已学完！")
+                                            }
+                                        }
+                                    }
                                 },
                                 onEnterLearningPlan = {
                                     showLearningPlan = true
                                 },
-                                onEnterReadingScreen = { // “回看往期”和“精选阅读”按钮会调用这里
+                                onEnterReadingScreen = {
                                     showArticleList = true
                                     showArticleDetail = false
                                 },
-                                onArticleClick = { articleId -> // “开始阅读”按钮会调用这里
+                                onArticleClick = { articleId ->
                                     selectedArticleId = articleId
                                     showArticleDetail = true
                                     showArticleList = false

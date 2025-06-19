@@ -15,11 +15,12 @@ import com.example.learnielts.data.room.PlanWordDao
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.example.learnielts.data.room.PlanDatabase
 
 
 object FileHelper {
 
-    // ✅ 新增：根据从服务器获取的数据，强制覆盖本地所有学习计划
+    // 根据从服务器获取的数据，强制覆盖本地所有学习计划
     fun overwriteLocalPlansFromServer(context: Context, plansFromServer: List<PlanResponse>) {
         Log.d("调试", "🗃️ 开始执行本地文件覆盖操作...")
         val plansDir = context.getExternalFilesDir(null) ?: return
@@ -147,64 +148,67 @@ object FileHelper {
 
     suspend fun generateTodayWordListFromPlan(
         context: Context,
-        category: String,
-        selectedPlan: String, // 不带 .db 后缀的原始文件名
-        planName: String,
-        dailyCount: Int
-    ): List<String> { // ✅ 返回类型变为 List<String>
+        plan: PlanInfo, // 直接传入 PlanInfo 对象
+        masteredWords: List<String> // 传入全局已掌握单词列表
+    ): List<String> {
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        val targetDir = File(context.getExternalFilesDir("word_schedule"), planName)
+        val targetDir = File(context.getExternalFilesDir("word_schedule"), plan.planName)
         val targetFile = File(targetDir, "$dateStr.json")
 
         if (targetFile.exists()) {
-            Log.d("调试", "⏩ [$planName] 今日词表已存在，跳过生成")
-            // ✅ 如果已存在，可以读取并返回内容，或返回空列表表示未新生成
-            val existingWords = try {
+            Log.d("调试", "⏩ [${plan.planName}] 今日词表已存在，跳过生成")
+            return try {
                 val json = JSONArray(targetFile.readText())
                 List(json.length()) { json.getString(it) }
             } catch (e: Exception) { emptyList() }
-            return existingWords
         }
 
         try {
-            // 已学单词
-            val learned = mutableSetOf<String>()
+            // 1. 获取当前计划已经学过的所有单词 (这部分逻辑不变)
+            val learnedInThisPlan = mutableSetOf<String>()
             targetDir.mkdirs()
             targetDir.listFiles()?.forEach { file ->
                 if (file.name.endsWith(".json")) {
                     val arr = JSONArray(file.readText())
                     for (i in 0 until arr.length()) {
-                        learned.add(arr.getString(i).lowercase())
+                        learnedInThisPlan.add(arr.getString(i).lowercase())
                     }
                 }
             }
+            Log.d("调试", "📖 [${plan.planName}] 已学单词读取完成，总数=${learnedInThisPlan.size}")
 
-            Log.d("调试", "📖 已学单词读取完成，总数=${learned.size}")
-
+            // 2. 准备数据库 (这部分逻辑不变)
             withContext(Dispatchers.IO) {
-                copyOrUpdatePlanDb(context, category, selectedPlan)
+                copyOrUpdatePlanDb(context, plan.category, plan.selectedPlan)
             }
-
-            val dbName = "$selectedPlan.db"
-            val db = com.example.learnielts.data.room.PlanDatabase.getInstance(context, dbName)
+            val dbName = "${plan.selectedPlan}.db"
+            val db = PlanDatabase.getInstance(context, dbName)
             val dao = db.planWordDao()
-            val newWords = withContext(Dispatchers.IO) {
-                dao.getUnlearnedWords(learned.toList(), dailyCount)
-            }
-            Log.d("调试", "✅ 成功获取未学单词 ${newWords.size} 个")
 
+            // 3. ✅【核心修改】准备一个包含所有需要排除的单词的列表
+            // 这个列表包括了本计划已学的 和 所有计划中已彻底掌握的
+            val wordsToExclude = (learnedInThisPlan + masteredWords).distinct()
+            Log.d("调试", "  🚫 [${plan.planName}] 将排除 ${wordsToExclude.size} 个单词 (本计划已学 + 全局已掌握).")
+
+            // 4. ✅【核心修改】调用我们刚刚在 DAO 中新增的、更高效的函数
+            val newWords = withContext(Dispatchers.IO) {
+                dao.getNewWordsExcluding(wordsToExclude, plan.dailyCount)
+            }
+            Log.d("调试", "✅ [${plan.planName}] 成功从数据库随机获取未学单词 ${newWords.size} 个")
+
+            // 5. 将获取到的新词写入文件 (这部分逻辑不变)
             if (newWords.isNotEmpty()) {
                 val jsonArr = JSONArray(newWords)
                 targetFile.writeText(jsonArr.toString(2))
-                Log.d("调试", "✅ [$planName] 今日词表写入完成 → $dateStr.json")
+                Log.d("调试", "✅ [${plan.planName}] 今日词表写入完成 → $dateStr.json")
             } else {
-                Log.w("调试", "⚠️ [$planName] 没有剩余可学习的单词")
+                Log.w("调试", "⚠️ [${plan.planName}] 没有剩余可学习的新单词")
             }
-            return newWords // ✅ 返回新生成的单词列表
+            return newWords
 
         } catch (e: Exception) {
-            Log.e("调试", "❌ [$planName] 生成今日词表出错：${e.message}")
-            return emptyList() // ✅ 出错时返回空列表
+            Log.e("调试", "❌ [${plan.planName}] 生成今日词表出错：${e.message}")
+            return emptyList()
         }
     }
 

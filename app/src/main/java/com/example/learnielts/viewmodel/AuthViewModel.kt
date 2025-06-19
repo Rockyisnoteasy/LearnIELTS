@@ -38,6 +38,12 @@ import com.example.learnielts.data.model.DailyWords
 import com.example.learnielts.data.model.PlanCreateRequest
 import com.example.learnielts.utils.PlanInfo
 import kotlinx.coroutines.withContext
+import com.example.learnielts.data.model.DailySessionResponse
+import kotlinx.coroutines.flow.asStateFlow
+import com.example.learnielts.data.model.ReviewResult
+import com.example.learnielts.data.model.SubmitReviewRequest
+import java.util.UUID
+import com.example.learnielts.data.model.TestResultForSubmission
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -54,6 +60,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _plans = MutableStateFlow<List<PlanInfo>>(emptyList())
     val plans: StateFlow<List<PlanInfo>> = _plans
 
+    // 将 dailySession 改为 Map，以存储每个计划独立的会话状态
+    // Key: planId, Value: DailySessionResponse
+    private val _dailySessions = MutableStateFlow<Map<Int, DailySessionResponse>>(emptyMap())
+    val dailySessions: StateFlow<Map<Int, DailySessionResponse>> = _dailySessions.asStateFlow()
+
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage
 
@@ -61,22 +72,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     val loggedOut: StateFlow<Boolean> = _loggedOut
 
     init {
-        // 启动时尝试自动加载
         val savedToken = prefs.getString("access_token", null)
         if (!savedToken.isNullOrBlank()) {
             _token.value = savedToken
             viewModelScope.launch {
                 try {
-                    val user = ApiClient.authService.getProfile("Bearer $savedToken")
-                    _profile.value = user
-                    Log.d("调试", "✅ 自动登录成功：${user.email}")
-
-                    // ✅ 自动登录成功后，也同步一次学习计划
+                    _profile.value = ApiClient.authService.getProfile("Bearer $savedToken")
+                    Log.d("调试", "自动登录成功：${_profile.value?.email}")
                     syncPlans()
-
+                    startSessionCheckLoop()
                 } catch (e: Exception) {
-                    Log.e("调试", "❌ 自动登录失败：${e.message}")
-                    // 如果 token 无效，也应该登出
                     handleApiError(e, "自动登录")
                 }
             }
@@ -91,8 +96,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _toastMessage.value = "您的会话已过期或在其他设备登录"
         } else {
             Log.e("调试", "❌ 在 '$fromFunction' 中发生API错误: ${e.message}")
-            // 可选：显示一个通用的错误提示
-            // Toast.makeText(context, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -108,21 +111,22 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val response = ApiClient.authService.login(
-                    username = email,  // ✅ 用 email 填到 username 字段
+                    username = email,  // 用 email 填到 username 字段
                     password = password
                 )
                 _token.value = response.access_token
 
-                prefs.edit().putString("access_token", response.access_token).apply() // ✅ 保存 token
+                prefs.edit().putString("access_token", response.access_token).apply() // 保存 token
 
                 val profile = ApiClient.authService.getProfile("Bearer ${response.access_token}")
                 _profile.value = profile
-                Log.d("调试", "✅ 成功获取用户信息 ${profile.email}")
+                Log.d("调试", "成功获取用户信息 ${profile.email}")
 
-                // ✅ 登录成功后，立即同步学习计划
+                // 登录成功后，立即同步学习计划
                 syncPlans()
+                startSessionCheckLoop()
 
-                // ✅ 添加：启动10分钟一次的session校验
+                // 添加：启动10分钟一次的session校验
                 startSessionCheckLoop()
 
             } catch (e: Exception) {
@@ -132,20 +136,70 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ✅ 3. 新增核心的上报函数
+    fun submitReviewResults(planId: Int, results: List<TestResultForSubmission>, testType: String) {
+        if (results.isEmpty()) return
+
+        viewModelScope.launch {
+            val token = _token.value ?: return@launch
+            val apiResults = results.map { ReviewResult(it.word, it.isCorrect, testType) }
+            val request = SubmitReviewRequest(
+                reviewBatchId = UUID.randomUUID().toString(),
+                planId = planId, // ✅ 附带 planId
+                results = apiResults
+            )
+            try {
+                Log.d("调试", "🧠 [ViewModel v2.1] Submitting ${request.results.size} results for plan $planId")
+                ApiClient.authService.submitReviewResults("Bearer $token", request)
+            } catch (e: Exception) {
+                handleApiError(e, "上报测试结果")
+            }
+        }
+    }
+
+
+    // ✅ V2.1: 升级 fetchDailySession，使其能获取特定计划的数据
+    fun fetchDailySessionForPlan(planId: Int) {
+        viewModelScope.launch {
+            val token = _token.value ?: return@launch
+            try {
+                Log.d("调试", "🚀 [ViewModel v2.1] Fetching daily session for planId=$planId...")
+                val sessionData = ApiClient.authService.getDailySession("Bearer $token", planId)
+                _dailySessions.value = _dailySessions.value.toMutableMap().apply {
+                    put(planId, sessionData)
+                }
+                Log.d("调试", "  ✅ [ViewModel v2.1] Daily session for plan $planId updated.")
+            } catch (e: Exception) {
+                handleApiError(e, "获取计划${planId}的每日任务")
+            }
+        }
+    }
+
+    // 获取已掌握单词的函数
+    suspend fun fetchMasteredWords(): List<String> {
+        val token = _token.value ?: return emptyList()
+        return try {
+            ApiClient.authService.getMasteredWords("Bearer $token").words
+        } catch (e: Exception) {
+            handleApiError(e, "获取已掌握单词列表")
+            emptyList()
+        }
+    }
+
     // 从服务器同步学习计划的函数
     private suspend fun syncPlans() {
         val currentToken = "Bearer ${_token.value}"
         try {
-            Log.d("调试", "🔄 开始从服务器同步学习计划...")
+            Log.d("调试", "开始从服务器同步学习计划...")
             val plansFromServer = ApiClient.authService.getPlans(currentToken)
-            Log.d("调试", "✅ 从服务器获取到 ${plansFromServer.size} 个学习计划")
+            Log.d("调试", "从服务器获取到 ${plansFromServer.size} 个学习计划")
 
             // 使用 withContext 确保文件操作完成后再继续
             withContext(Dispatchers.IO) {
                 FileHelper.overwriteLocalPlansFromServer(context, plansFromServer)
             }
 
-            // ✅ 关键修正：操作完成后，调用 loadPlans() 刷新UI状态
+            // 操作完成后，调用 loadPlans() 刷新UI状态
             loadPlans()
 
         } catch (e: Exception) {
@@ -181,7 +235,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
 
-                Log.d("调试", "✅ 注册成功，尝试登录")
+                Log.d("调试", "注册成功，尝试登录")
                 Toast.makeText(context, "注册成功，正在登录…", Toast.LENGTH_SHORT).show()
                 login(email, password)
 
@@ -200,7 +254,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 // 1. 上传到服务器
                 val request = PlanCreateRequest(planName, category, selectedPlan, dailyCount)
                 val serverResponse = ApiClient.authService.createPlan(currentToken, request)
-                Log.d("调试", "✅ 计划 '${planName}' 已成功上传到服务器, ID: ${serverResponse.id}")
+                Log.d("调试", "计划 '${planName}' 已成功上传到服务器, ID: ${serverResponse.id}")
 
                 // 2. 更新本地文件
                 val newPlanInfo = PlanInfo(
@@ -210,7 +264,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     selectedPlan = serverResponse.selectedPlan,
                     dailyCount = serverResponse.dailyCount
                 )
-                // ✅ --- 修改开始 ---
+
                 // 使用 withContext 确保文件操作在IO线程完成
                 withContext(Dispatchers.IO) {
                     // a. 将新计划信息保存到本地 current_plan.json
@@ -218,12 +272,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
                     // b. 立刻为这个新计划生成今天的单词列表
                     Log.d("调试", "为新计划 '${planName}' 生成今日词表...")
+                    val masteredWords = fetchMasteredWords()
                     val newWords = FileHelper.generateTodayWordListFromPlan(
                         context,
-                        newPlanInfo.category,
-                        newPlanInfo.selectedPlan,
-                        newPlanInfo.planName,
-                        newPlanInfo.dailyCount
+                        newPlanInfo,
+                        masteredWords
                     )
                     Log.d("调试", "为新计划生成了 ${newWords.size} 个单词。")
 
@@ -235,7 +288,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
                 // 3. 刷新UI，加载包含新计划的列表
                 loadPlans()
-                // ✅ --- 修改结束 ---
+
 
             } catch (e: Exception) {
                 Log.e("调试", "❌ 创建新计划失败: ${e.message}")
@@ -252,7 +305,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // 1. 从服务器删除
                 ApiClient.authService.deletePlan(currentToken, planId)
-                Log.d("调试", "✅ 计划 '${planInfo.planName}' 已从服务器删除")
+                Log.d("调试", "计划 '${planInfo.planName}' 已从服务器删除")
 
                 // 2. 从本地删除
                 withContext(Dispatchers.IO) {
@@ -274,7 +327,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val dailyWords = DailyWords(wordDate = dateStr, words = words)
             try {
                 ApiClient.authService.addDailyWords(currentToken, planId, dailyWords)
-                Log.d("调试", "✅ 每日单词列表已上传, Plan ID: $planId, Date: $dateStr")
+                Log.d("调试", "每日单词列表已上传, Plan ID: $planId, Date: $dateStr")
             } catch (e: Exception) {
                 handleApiError(e, "上传每日单词")
             }
