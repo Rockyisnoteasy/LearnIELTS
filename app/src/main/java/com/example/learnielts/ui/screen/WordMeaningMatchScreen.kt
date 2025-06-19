@@ -7,8 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,11 +19,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.launch
 
 @Composable
 fun WordMeaningMatchScreen(
     initialSessionPairs: List<Pair<String, String>>,
-    onFinish: (results: List<Quad>) -> Unit, // 复用 Quad 结构来记录结果
+    onFinish: (results: List<Quad>) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler {
@@ -38,10 +37,22 @@ fun WordMeaningMatchScreen(
     var selectedWord by remember { mutableStateOf<String?>(null) }
     var incorrectSelection by remember { mutableStateOf<Pair<String?, String?>>(null to null) }
 
+    // ✅ 【替代方案】: 使用最基础的 mutableStateOf 来持有 Set。这 100% 不会报错。
+    var incorrectWordsInSession by remember { mutableStateOf(emptySet<String>()) }
+    val scope = rememberCoroutineScope()
+
     // --- 核心逻辑 ---
     fun startNewRound() {
         if (remainingPairs.isEmpty()) {
-            onFinish(emptyList()) // 暂时不记录详细对错，直接结束
+            val finalResults = initialSessionPairs.map { pair ->
+                Quad(
+                    word = pair.first,
+                    chinese = pair.second,
+                    userAnswer = if (incorrectWordsInSession.contains(pair.first)) "错误" else "正确",
+                    correct = !incorrectWordsInSession.contains(pair.first)
+                )
+            }
+            onFinish(finalResults)
             return
         }
         val roundPairs = remainingPairs.take(4)
@@ -53,16 +64,23 @@ fun WordMeaningMatchScreen(
     }
 
     LaunchedEffect(remainingPairs) {
-        startNewRound()
+        scope.launch {
+            // delay(300)
+            startNewRound()
+        }
     }
 
     // --- UI 渲染 ---
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .padding(16.dp)) {
         TextButton(onClick = onBack) { Text("← 返回") }
         Spacer(Modifier.height(16.dp))
 
         if (currentRoundData == null) {
-            // 加载中...
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                // 加载中...
+            }
         } else {
             val (words, meanings) = currentRoundData!!
             val wordToMeaningMap = remainingPairs.take(4).toMap()
@@ -104,12 +122,12 @@ fun WordMeaningMatchScreen(
                                         // 匹配正确
                                         matchedWordsInRound = matchedWordsInRound + selectedWord!!
                                         if (matchedWordsInRound.size == words.size) {
-                                            // 本轮结束
                                             remainingPairs = remainingPairs.drop(4)
                                         }
                                         selectedWord = null
                                     } else {
-                                        // 匹配错误
+                                        // ✅ 【替代方案】: 匹配错误时，创建一个包含新错误单词的新 Set
+                                        incorrectWordsInSession = incorrectWordsInSession + selectedWord!!
                                         incorrectSelection = selectedWord to meaning
                                         selectedWord = null
                                     }
@@ -142,15 +160,13 @@ private fun MatchItem(
     val backgroundColor by animateColorAsState(
         targetValue = when {
             isMatched -> Color.LightGray.copy(alpha = 0.3f)
-            isSelected -> Color(0xFFC8E6C9) // 选中时的淡绿色
-            isIncorrect -> Color(0xFFFFCDD2) // 错误时的淡红色
+            isSelected -> Color(0xFFC8E6C9)
+            isIncorrect -> Color(0xFFFFCDD2)
             else -> Color.White
         },
         animationSpec = tween(300)
     )
-
     val textColor = if (isMatched) Color.Gray else Color.Black
-
     Box(
         modifier = Modifier
             .fillMaxWidth()

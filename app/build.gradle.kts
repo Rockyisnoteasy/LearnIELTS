@@ -59,7 +59,7 @@ android {
 }
 
 dependencies {
-    // Jetpack Compose
+// Jetpack Compose
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -75,71 +75,55 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
     implementation("androidx.compose.ui:ui:1.5.4")
     implementation("androidx.compose.material3:material3:1.1.2")
-
-    // Kotlin Coroutines
+// Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // CSV
+// CSV
     implementation("com.opencsv:opencsv:5.7.1")
-
-    // OkHttp（for Tencent TTS）
+// OkHttp（for Tencent TTS）
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-urlconnection:4.12.0")
 
-    // ✅ Google Cloud Text-to-Speech
+// ✅ Google Cloud Text-to-Speech
     implementation("com.google.cloud:google-cloud-texttospeech:2.34.0")
     implementation("com.google.protobuf:protobuf-java:3.21.12")
     implementation("com.google.api.grpc:proto-google-common-protos:2.14.0")
-
     implementation("io.grpc:grpc-okhttp:1.53.0")
     implementation("io.grpc:grpc-core:1.53.0")
     implementation("io.grpc:grpc-stub:1.53.0")
     implementation("io.grpc:grpc-protobuf:1.53.0") // ✅ 完整版 protobuf 支持
-
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.auth:google-auth-library-oauth2-http:1.18.0")
-
     implementation("com.wajahatkarim:flippable:1.5.4")
-
     implementation("org.apache.poi:poi-ooxml:5.2.3")
     implementation("androidx.multidex:multidex:2.0.1")
-
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-
     implementation("androidx.compose.material3:material3:1.1.2")
-
-    // ✅ Retrofit 核心库
+// ✅ Retrofit 核心库
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
-
 // ✅ Gson 转换器（将 JSON 映射为 Kotlin 对象）
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
-
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
     implementation("io.coil-kt:coil-compose:2.4.0")
 
-
     configurations.all {
-    resolutionStrategy.eachDependency {
-        if (requested.group == "io.grpc" && requested.name == "grpc-netty") {
-            useTarget("io.grpc:grpc-okhttp:1.53.0")
+        resolutionStrategy.eachDependency {
+            if (requested.group == "io.grpc" && requested.name == "grpc-netty") {
+                useTarget("io.grpc:grpc-okhttp:1.53.0")
+            }
+            if (requested.group == "io.grpc" && requested.name == "grpc-netty-shaded") {
+                useTarget("io.grpc:grpc-okhttp:1.53.0")
+            }
         }
-        if (requested.group == "io.grpc" && requested.name == "grpc-netty-shaded") {
-            useTarget("io.grpc:grpc-okhttp:1.53.0")
-        }
+        exclude(group = "io.grpc", module = "grpc-netty")
+        exclude(group = "io.grpc", module = "grpc-netty-shaded")
     }
-
-    exclude(group = "io.grpc", module = "grpc-netty")
-    exclude(group = "io.grpc", module = "grpc-netty-shaded")
-}
-
-    // 测试相关
+// 测试相关
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

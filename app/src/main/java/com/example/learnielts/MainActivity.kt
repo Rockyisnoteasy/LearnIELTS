@@ -1495,18 +1495,23 @@ fun AppContent(
                             )
                             "test" -> WordMeaningMatchScreen(
                                 initialSessionPairs = testQuestions,
-                                onFinish = { results ->
+                                onFinish = { results -> // ✅ 'results' 现在是真实的成绩单
                                     val planId = currentPlanForTest?.serverId
-                                    if (planId != null) {
+                                    // ✅ 只有在学习序列中（从首页进入）才上报成绩
+                                    if (isInTestSequence && planId != null) {
                                         val resultsForSubmission = results.map { TestResultForSubmission(it.word, it.correct) }
-                                        // 上报 low_selection 类型
+                                        // ✅ 上报 low_selection 类型，与“以词选意”保持一致
                                         authViewModel.submitReviewResults(planId, resultsForSubmission, "low_selection")
                                     }
 
+                                    // ✅ 统一后续的界面跳转逻辑
                                     if (isInTestSequence) {
+                                        // 在测试序列中，进入通用的结果页，并准备进入下一轮
                                         showWordMeaningMatch = false
-                                        onTestFinished(results)
+                                        testResults = results // 将结果存起来给通用结果页显示
+                                        showUniversalResultScreen = true
                                     } else {
+                                        // 从抽屉菜单进入，则停留在当前模块的结果页
                                         testResults = results
                                         wordMeaningMatchState = "result"
                                         showWordMeaningMatch = true
