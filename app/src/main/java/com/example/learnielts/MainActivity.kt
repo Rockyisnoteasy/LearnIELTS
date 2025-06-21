@@ -97,6 +97,8 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.learnielts.ui.screen.SpeechRecognitionTestScreen
+import com.example.learnielts.ui.screen.SpeechRecognitionTestSetupScreen
 
 enum class DrawerLevel {
     MAIN_MENU, // 一级菜单（最上层）➡ 功能菜单 / 自主学习计划
@@ -115,6 +117,8 @@ enum class DrawerLevel {
     PLAN_SELF_WORD_MEANING_SELECT,
     PLAN_WORD_MATCH,
     PLAN_SELF_WORD_MATCH,
+    PLAN_SPEECH_RECOGNITION_TEST, // 读词填空（计划模式）
+    PLAN_SELF_SPEECH_RECOGNITION_TEST,
     // 阅读相关的 DrawerLevel
     READING_MENU, // 阅读主菜单（如果未来有收藏、我的笔记等子菜单）
     READING_LIST, // 文章列表
@@ -244,6 +248,9 @@ fun AppContent(
     var wordsForCurrentSession by remember { mutableStateOf<List<String>>(emptyList()) }
     var showWordSentencePage by remember { mutableStateOf(false) }
     var showLearningPlan by remember { mutableStateOf(false) }
+    var showSpeechRecognitionTest by remember { mutableStateOf(false) }
+    var speechRecognitionTestState by remember { mutableStateOf("setup") } // "setup" or "test"
+    var speechRecognitionQuestions by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
     var selectedPlan by remember { mutableStateOf<String?>(null) }
     var learningPlanTarget by remember { mutableStateOf<String?>(null) }
     var selectedPlanToManage by remember { mutableStateOf<String?>(null) }
@@ -280,6 +287,7 @@ fun AppContent(
             "chinese_select",         // 选择填词
             "chinese_spell",          // 拼写填词
             "listening_test",         // 听力填空
+            "speech_recognition_test",// 读词填空
             "word_sentence"           // 以词造句
         )
     }
@@ -306,7 +314,8 @@ fun AppContent(
                 testSequence = testSequence,
                 currentTestIndex = currentTestIndex,
                 words = wordsForCurrentSession,
-                viewModel = viewModel
+                viewModel = viewModel,
+                authViewModel = authViewModel
             ) { screenName, questionsData ->
                 testQuestions = questionsData
                 when (screenName) {
@@ -316,6 +325,11 @@ fun AppContent(
                     "chinese_select" -> { chineseSelectScreenState = "test"; showChineseToEnglishSelect = true }
                     "chinese_spell" -> { chineseTestScreenState = "test"; showChineseToEnglish = true }
                     "listening_test" -> { listeningWordList = wordsForCurrentSession.shuffled(); listeningTestState = "test"; showListeningTest = true }
+                    "speech_recognition_test" -> {
+                        speechRecognitionQuestions = questionsData
+                        speechRecognitionTestState = "test"
+                        showSpeechRecognitionTest = true
+                    }
                     "word_sentence" -> { showWordSentencePage = true }
                 }
             }
@@ -436,6 +450,10 @@ fun AppContent(
 
                         DrawerText("听力填空") {
                             drawerLevel = DrawerLevel.PLAN_LISTEN_MENU
+                        }
+
+                        DrawerText("读词填空") {
+                            drawerLevel = DrawerLevel.PLAN_SPEECH_RECOGNITION_TEST
                         }
 
                         DrawerText("以词造句") {
@@ -589,6 +607,10 @@ fun AppContent(
                         DrawerText("听力填空") {
                             showListeningTest = true
                             scope.launch { drawerState.close() }
+                        }
+
+                        DrawerText("读词填空") {
+                            drawerLevel = DrawerLevel.PLAN_SELF_SPEECH_RECOGNITION_TEST
                         }
 
                         DrawerText("以词造句") {
@@ -1007,13 +1029,123 @@ fun AppContent(
                         Divider()
                         // 可以在这里列出文章详情页的额外菜单项，如果需要的话
                     }
+
+                    DrawerLevel.PLAN_SPEECH_RECOGNITION_TEST -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { drawerLevel = DrawerLevel.PLAN_MENU }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("选择计划（读词填空）")
+                        }
+
+                        Divider()
+
+                        val plans = remember { FileHelper.loadAllPlans(context) }
+                        plans.forEach { plan ->
+                            DrawerText(plan.planName) {
+                                currentPlanForTest = plan
+                                learningPlanTarget = "speech_recognition_test" // 标记来源
+                                selectedPlan = plan.planName // 传递计划名称
+                                showSpeechRecognitionTest = true
+                                speechRecognitionTestState = "setup"
+                                scope.launch { drawerState.close() }
+                            }
+                        }
+                    }
+
+                    // ✅ 新增：读词填空（自订模式）的逻辑，直接返回 setup
+                    DrawerLevel.PLAN_SELF_SPEECH_RECOGNITION_TEST -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { drawerLevel = DrawerLevel.SELF_PLAN_MENU }
+                                .padding(16.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                            Spacer(Modifier.width(8.dp))
+                            DrawerText("返回自订菜单")
+                        }
+
+                        Divider()
+                        // 相当于直接点击“自订”下的读词填空，无需再选择计划
+                        DrawerText("开始读词填空") {
+                            learningPlanTarget = "speech_recognition_test_self" // 标记来源
+                            selectedPlan = null // 自订模式不需要特定计划名称
+                            showSpeechRecognitionTest = true
+                            speechRecognitionTestState = "setup"
+                            scope.launch { drawerState.close() }
+                        }
+                    }
                 }
             }
         }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
 
-            if (showNotificationDetail && selectedNotification != null) {
+            if (showSpeechRecognitionTest) {
+                when (speechRecognitionTestState) {
+                    "setup" -> SpeechRecognitionTestSetupScreen(
+                        context = LocalContext.current,
+                        viewModel = viewModel,
+                        // 根据 learningPlanTarget 决定词源
+                        planSource = if (learningPlanTarget == "speech_recognition_test")
+                            WordPlanSource.SCHEDULED_PLAN else WordPlanSource.LEARNED_WORDS,
+                        selectedPlanName = selectedPlan,
+                        onBack = { showSpeechRecognitionTest = false },
+                        onStartTest = { questions ->
+                            speechRecognitionQuestions = questions
+                            speechRecognitionTestState = "test"
+                        }
+                    )
+                    "test" -> SpeechRecognitionTestScreen(
+                        context = LocalContext.current,
+                        questions = speechRecognitionQuestions,
+                        viewModel = viewModel,
+                        authViewModel = authViewModel,
+                        planId = currentPlanForTest?.serverId, // 传递当前计划ID
+                        onFinish = { results ->
+                            // 处理测试完成后的逻辑，例如显示结果页或进入下一个测试
+                            if (isInTestSequence) {
+                                showSpeechRecognitionTest = false
+                                testResults = results
+                                showUniversalResultScreen = true
+                            } else {
+                                testResults = results
+                                speechRecognitionTestState = "result"
+                                showSpeechRecognitionTest = true
+                            }
+                        },
+                        onBack = {
+                            if (isInTestSequence) {
+                                showSpeechRecognitionTest = false
+                                isInTestSequence = false
+                                currentTestIndex = 0
+                                scope.launch { snackbarHostState.showSnackbar("已退出当前测试") }
+                            } else {
+                                speechRecognitionTestState = "setup"
+                            }
+                        }
+                    )
+                    "result" -> TestResultScreen(
+                        results = testResults, // 使用通用的 TestResultScreen
+                        onBack = { showSpeechRecognitionTest = false },
+                        onRetry = {
+                            // 重试逻辑：重新加载题目并进入测试
+                            speechRecognitionQuestions = testResults.shuffled().map { r -> r.word to r.chinese }
+                            speechRecognitionTestState = "test"
+                        },
+                        retryButtonText = "重做"
+                    )
+                }
+            }
+
+            else if (showNotificationDetail && selectedNotification != null) {
                 NotificationDetailScreen(
                     notification = selectedNotification!!,
                     onBack = { showNotificationDetail = false }
@@ -1293,7 +1425,8 @@ fun AppContent(
                                         testSequence = testSequence,
                                         currentTestIndex = 0,
                                         words = wordsForCurrentSession,
-                                        viewModel = viewModel
+                                        viewModel = viewModel,
+                                        authViewModel = authViewModel
                                     ) { screenName, questionsData ->
                                         testQuestions = questionsData
                                         when (screenName) {
@@ -1650,7 +1783,8 @@ fun AppContent(
                                 testSequence = testSequence,
                                 currentTestIndex = 0,
                                 words = wordsForCurrentSession,
-                                viewModel = viewModel
+                                viewModel = viewModel,
+                                authViewModel = authViewModel
                             ) { screenName, questionsData ->
                                 // `questionsData` 是辅助函数准备好的数据
                                 testQuestions = questionsData
@@ -1703,7 +1837,6 @@ fun AppContent(
                 )
             }
 
-// 2. “是否继续下一轮测试？” 对话框
             if (showNextTestDialog) {
                 var tempNoRemind by remember { mutableStateOf(doNotRemindForSession) }
                 AlertDialog(
@@ -1729,7 +1862,13 @@ fun AppContent(
                             showNextTestDialog = false
                             doNotRemindForSession = tempNoRemind
                             // ✅ 调用辅助函数，并处理所有测试类型的回调
-                            startCurrentTest(testSequence, currentTestIndex, wordsForCurrentSession, viewModel) { screenName, questionsData ->
+                            startCurrentTest(
+                                testSequence = testSequence,
+                                currentTestIndex = 0,
+                                words = wordsForCurrentSession,
+                                viewModel = viewModel,
+                                authViewModel = authViewModel
+                            ) { screenName, questionsData ->
                                 testQuestions = questionsData
                                 when (screenName) {
                                     "word_to_meaning_select" -> {
@@ -1791,24 +1930,21 @@ fun AppContent(
                 Icon(Icons.Default.Menu, contentDescription = "打开菜单")
             }
         }
-
     }
 }
 
-// 在 MainActivity.kt 的末尾，或 AppContent 外部
 private fun startCurrentTest(
     testSequence: List<String>,
     currentTestIndex: Int,
     words: List<String>,
     viewModel: DictionaryViewModel,
-    // 使用一个回调函数来通知 MainActivity 更新具体某个屏幕的状态
+    authViewModel: AuthViewModel, // ✅ 确保这里有这个参数
     showScreen: (screenName: String, questions: List<Pair<String, String>>) -> Unit
 ) {
     if (currentTestIndex >= testSequence.size) return // 所有测试已完成
 
     val testType = testSequence[currentTestIndex]
 
-    // ✅ 核心修正：所有的数据准备逻辑都在这里完成
     val questions = when (testType) {
         "word_to_meaning_select" -> {
             words.mapNotNull { word ->
@@ -1831,7 +1967,7 @@ private fun startCurrentTest(
             }.shuffled()
         }
 
-        "meaning_to_word_select", "chinese_spell", "chinese_select" -> {
+        "meaning_to_word_select", "chinese_spell", "chinese_select", "speech_recognition_test" -> { // ✅ 确保包含 "speech_recognition_test"
             words.mapNotNull { word ->
                 viewModel.getDefinition(word)?.let { def ->
                     ChineseDefinitionExtractor.extract(def)?.let { chinese ->

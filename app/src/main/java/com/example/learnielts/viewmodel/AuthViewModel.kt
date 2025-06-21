@@ -44,6 +44,9 @@ import com.example.learnielts.data.model.ReviewResult
 import com.example.learnielts.data.model.SubmitReviewRequest
 import java.util.UUID
 import com.example.learnielts.data.model.TestResultForSubmission
+import com.example.learnielts.data.model.GenerateUploadUrlResponse
+import com.example.learnielts.data.model.GenerateUploadUrlRequest
+import com.example.learnielts.data.model.SubmitOssForRecognitionRequest
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -133,6 +136,38 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("调试", "❌ 登录失败: ${e.message}")
                 Toast.makeText(context, "登录失败，请检查账号或密码", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    /**
+     * 从后端获取一个用于上传到 OSS 的预签名 URL。
+     */
+    suspend fun generateUploadUrl(filename: String): GenerateUploadUrlResponse? {
+        val token = _token.value ?: return null
+        return try {
+            val request = GenerateUploadUrlRequest(filename)
+            ApiClient.authService.generateUploadUrl("Bearer $token", request)
+        } catch (e: Exception) {
+            handleApiError(e, "generateUploadUrl")
+            null
+        }
+    }
+
+    /**
+     * 在文件上传到 OSS 后，通知后端开始进行语音识别。
+     */
+    suspend fun submitOssForRecognition(objectKey: String, word: String, planId: Int): com.example.learnielts.data.model.SpeechRecognitionResponse? {
+        val token = _token.value ?: return null
+        return try {
+            val request = com.example.learnielts.data.model.SubmitOssForRecognitionRequest(
+                object_key = objectKey,
+                word = word,
+                plan_id = planId
+            )
+            ApiClient.authService.submitOssForRecognition("Bearer $token", request)
+        } catch (e: Exception) {
+            handleApiError(e, "submitOssForRecognition")
+            null
         }
     }
 

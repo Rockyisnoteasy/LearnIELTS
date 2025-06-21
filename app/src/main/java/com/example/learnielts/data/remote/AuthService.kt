@@ -36,6 +36,11 @@ import com.example.learnielts.data.model.DailySessionResponse
 import com.example.learnielts.data.model.ReviewResult
 import com.example.learnielts.data.model.SubmitReviewRequest
 import com.example.learnielts.data.model.MasteredWordsResponse
+import com.example.learnielts.data.model.GenerateUploadUrlResponse
+import com.example.learnielts.data.model.GenerateUploadUrlRequest
+import com.example.learnielts.data.model.SubmitOssForRecognitionRequest
+import com.example.learnielts.data.model.SpeechRecognitionResponse
+
 
 
 // 定义请求体
@@ -213,5 +218,25 @@ interface AuthService {
         @Header("Authorization") authHeader: String,
         @Body request: SubmitReviewRequest
     ): Response<Unit> // 我们只关心是否成功(200 OK)，所以响应体可以是Unit
+
+    /**
+     * 向后端请求一个用于上传文件的预签名 OSS URL。
+     * @param request 包含客户端生成的文件名。
+     */
+    @POST("learning/generate-upload-url")
+    suspend fun generateUploadUrl(
+        @Header("Authorization") authHeader: String,
+        @Body request: GenerateUploadUrlRequest
+    ): GenerateUploadUrlResponse
+
+    /**
+     * 通知后端文件已上传到 OSS，并请求开始语音识别。
+     * @param request 包含文件在 OSS 中的 object_key、正确的单词和计划ID。
+     */
+    @POST("learning/submit-oss-for-recognition")
+    suspend fun submitOssForRecognition(
+        @Header("Authorization") authHeader: String,
+        @Body request: SubmitOssForRecognitionRequest
+    ): SpeechRecognitionResponse
 
 }
